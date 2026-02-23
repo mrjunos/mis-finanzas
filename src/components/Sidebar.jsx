@@ -1,0 +1,68 @@
+import React from 'react';
+import { useAuth } from '../context/AuthContext';
+
+const SidebarItem = ({ icon, active, onClick, className = '' }) => (
+    <button
+        onClick={onClick}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group
+    ${active ? 'bg-primary text-slate-900 shadow-lg shadow-primary/20 hover:scale-105' : 'hover:bg-white/60 text-slate-500 hover:text-primary'} ${className}`}
+    >
+        <span className="material-symbols-outlined transition-colors">
+            {icon}
+        </span>
+    </button>
+);
+
+export default function Sidebar({ activeView, onNavigate, isOpen, setIsOpen }) {
+    const { logout } = useAuth();
+
+    return (
+        <>
+            {/* Mobile Overlay */}
+            {isOpen && (
+                <div
+                    className="md:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40"
+                    onClick={() => setIsOpen(false)}
+                />
+            )}
+
+            <nav className={`
+                w-20 flex-col py-6 px-4 z-50 border-r border-white/30 h-screen fixed left-0 top-0 items-center bg-slate-50 md:bg-transparent
+                transition-transform duration-300 ease-in-out
+                ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+                flex
+            `}>
+                <div className="flex-1 flex flex-col gap-4 w-full items-center">
+                    <SidebarItem
+                        icon="dashboard"
+                        active={activeView === 'dashboard'}
+                        onClick={() => { onNavigate && onNavigate('dashboard'); setIsOpen && setIsOpen(false); }}
+                    />
+                    <SidebarItem
+                        icon="account_balance_wallet"
+                    />
+                    <SidebarItem
+                        icon="pie_chart"
+                    />
+                    <SidebarItem
+                        icon="receipt_long"
+                    />
+                    <div className="w-8 h-px bg-slate-200 mx-auto my-2"></div>
+                    <SidebarItem
+                        icon="settings"
+                        active={activeView === 'settings'}
+                        onClick={() => { onNavigate && onNavigate('settings'); setIsOpen && setIsOpen(false); }}
+                    />
+                </div>
+
+                <div className="mt-auto items-center flex flex-col w-full">
+                    <SidebarItem
+                        icon="logout"
+                        onClick={logout}
+                        className="hover:!text-red-500 hover:!bg-red-50"
+                    />
+                </div>
+            </nav>
+        </>
+    );
+}

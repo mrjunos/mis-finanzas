@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if the user is in the allowedEmails array
+    function isUserAllowed() {
+      return request.auth != null && 
+             request.auth.token.email in get(/databases/$(database)/documents/finance_settings/users).data.allowedEmails;
+    }
+
+    // Rules for the 'finance_settings/users' whitelist document itself
+    match /finance_settings/users {
+      // Allow any logged-in user to read the whitelist to check if they belong
+      allow read: if request.auth != null;
+      // Allow creation ONLY if it doesn't exist yet (for the very first admin)
+      allow create: if request.auth != null && !exists(/databases/$(database)/documents/finance_settings/users);
+      // Allow modifications ONLY by people already in the whitelist
+      allow update, delete: if isUserAllowed();
+    }
+
+    // Rules for all other documents in the database
+    match /{document=**} {
+      // Only authenticated users inside the whitelist can access other financial data
+      allow read, write: if isUserAllowed();
+    }
+  }
+}
