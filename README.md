@@ -1,16 +1,17 @@
-# React + Vite
+# Mis Finanzas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web personal para la gestión de finanzas, construida con React, Vite y Firebase.
 
-Currently, two official plugins are available:
+## Flujo de Trabajo y Despliegues (Regla Obligatoria)
+Para mantener la estabilidad y calidad del código, todos los cambios significativos y despliegues **deben** seguir un proceso de revisión:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. **Crear una rama nueva** para el cambio o la característica (ej. `feature/nueva-vista`).
+2. **Subir los cambios** al repositorio de GitHub.
+3. **Crear un Pull Request (PR)** hacia la rama principal (`main`).
+4. **Revisión y Aprobación**: Los despliegues a Firebase Hosting solo deben suceder después de que el PR ha sido revisado y fusionado en `main`.
 
-## React Compiler
+No se permiten despliegues directos a producción sin revisión previa.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Configuración Local
+1. Instalar dependencias: `npm install`
+2. Iniciar servidor local: `npm run dev`

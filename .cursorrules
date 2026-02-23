@@ -1,0 +1,7 @@
+# Project Rules
+
+## Deployments and Major Changes
+1. All deployments or major code changes MUST go through a code review process.
+2. DO NOT deploy directly to production without user approval.
+3. For each significant feature or fix, push the changes to a new branch and create a Pull Request on GitHub.
+4. Notify the user to review the Pull Request before merging and deploying.
