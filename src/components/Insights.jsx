@@ -1,18 +1,11 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { formatCompactNumber } from '../utils/format';
 
 const EXCHANGE_RATE = 4100; // Hardcoded COP/USD rate for estimation
 
 const Insights = ({ currentContext }) => {
     const { transactions, getTotals } = useFinance();
-
-    const formatCompact = (amount) => {
-        return new Intl.NumberFormat('es-CO', {
-            notation: "compact",
-            compactDisplay: "short",
-            maximumFractionDigits: 1
-        }).format(amount);
-    };
 
     // Filter transactions by context
     const filteredTransactions = useMemo(() => {
@@ -263,7 +256,7 @@ const Insights = ({ currentContext }) => {
                                 <span className="material-symbols-outlined text-lg">local_fire_department</span>
                             </div>
                         </div>
-                        <h2 className="text-3xl font-bold text-gray-800">{formatCompact(burnRate)} <span className="text-sm text-gray-400 font-normal">/ mes</span></h2>
+                        <h2 className="text-3xl font-bold text-gray-800">{formatCompactNumber(burnRate)} <span className="text-sm text-gray-400 font-normal">/ mes</span></h2>
                         <p className="text-sm text-gray-500 mt-2 font-medium">Promedio últimos 3 meses.</p>
                     </div>
 
@@ -308,8 +301,8 @@ const Insights = ({ currentContext }) => {
                                     <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full">
                                         {/* Tooltip */}
                                         <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] p-2 rounded-lg whitespace-nowrap z-10 pointer-events-none shadow-lg">
-                                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-400"></div> IN: {formatCompact(mes.income)}</div>
-                                            <div className="flex items-center gap-1 mt-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> OUT: {formatCompact(mes.expenses)}</div>
+                                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-400"></div> IN: {formatCompactNumber(mes.income)}</div>
+                                            <div className="flex items-center gap-1 mt-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> OUT: {formatCompactNumber(mes.expenses)}</div>
                                         </div>
 
                                         <div className="w-full flex justify-center gap-1 items-end h-full">
@@ -376,7 +369,7 @@ const Insights = ({ currentContext }) => {
                                                 {fuga.trend > 0 ? '+' : ''}{fuga.trend.toFixed(0)}%
                                             </span>
                                         </div>
-                                        <span className="font-bold text-gray-700">{formatCompact(fuga.amount)}</span>
+                                        <span className="font-bold text-gray-700">{formatCompactNumber(fuga.amount)}</span>
                                     </div>
                                 ))}
                                 {topFugas.length === 0 && (

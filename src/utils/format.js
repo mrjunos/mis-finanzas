@@ -1,0 +1,31 @@
+/**
+ * Formats a number as a currency string.
+ * Uses es-CO locale.
+ *
+ * @param {number} value - The numeric value to format.
+ * @param {string} currency - The currency code (e.g., 'COP', 'USD', 'EUR'). Defaults to 'COP'.
+ * @returns {string} The formatted currency string.
+ */
+export const formatCurrency = (value, currency = 'COP') => {
+    return new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: currency === 'COP' ? 0 : 2,
+        maximumFractionDigits: currency === 'COP' ? 0 : 2,
+    }).format(value);
+};
+
+/**
+ * Formats a number in compact notation (e.g. 1K, 1M).
+ * Uses es-CO locale.
+ *
+ * @param {number} value - The numeric value to format.
+ * @returns {string} The formatted compact string.
+ */
+export const formatCompactNumber = (value) => {
+    return new Intl.NumberFormat('es-CO', {
+        notation: "compact",
+        compactDisplay: "short",
+        maximumFractionDigits: 1
+    }).format(value);
+};

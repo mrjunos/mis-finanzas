@@ -5,6 +5,7 @@ import MetaModal from './MetaModal';
 import { useFinance } from '../context/FinanceContext';
 import { format, subMonths, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { formatCurrency } from '../utils/format';
 
 export default function Presupuestos({ currentContext }) {
     const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, transactions } = useFinance();
@@ -139,14 +140,6 @@ export default function Presupuestos({ currentContext }) {
         await saveBudgetConfig(monthStr, contextoKey, updatedCategories);
     };
 
-    const formatearDinero = (monto) => {
-        return new Intl.NumberFormat('es-CO', {
-            style: 'currency',
-            currency: 'COP',
-            minimumFractionDigits: 0,
-        }).format(monto);
-    };
-
     const calcularPorcentaje = (gastado, limite) => {
         const porcentaje = (gastado / limite) * 100;
         return porcentaje > 100 ? 100 : porcentaje;
@@ -233,11 +226,11 @@ export default function Presupuestos({ currentContext }) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Widget className="p-6 hover:shadow-soft transition-all">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Presupuestado</p>
-                        <h2 className="text-2xl font-extrabold text-slate-800">{formatearDinero(presupuestadoTotal)}</h2>
+                        <h2 className="text-2xl font-extrabold text-slate-800">{formatCurrency(presupuestadoTotal, 'COP')}</h2>
                     </Widget>
                     <Widget className="p-6 hover:shadow-soft transition-all">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Gastado</p>
-                        <h2 className="text-2xl font-extrabold text-slate-800">{formatearDinero(gastadoReal)}</h2>
+                        <h2 className="text-2xl font-extrabold text-slate-800">{formatCurrency(gastadoReal, 'COP')}</h2>
                         <div className="w-full bg-slate-100 rounded-full h-1 mt-3 overflow-hidden">
                             <div className={`${bgBrand} h-full rounded-full`} style={{ width: `${porcentajeGlobal}%` }}></div>
                         </div>
@@ -245,7 +238,7 @@ export default function Presupuestos({ currentContext }) {
                     <Widget className="p-6 hover:shadow-soft transition-all">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Disponible</p>
                         <h2 className={`text-2xl font-extrabold ${disponible < 0 ? 'text-red-500' : 'text-slate-800'}`}>
-                            {formatearDinero(disponible)}
+                            {formatCurrency(disponible, 'COP')}
                         </h2>
                     </Widget>
                 </div>
@@ -294,7 +287,7 @@ export default function Presupuestos({ currentContext }) {
                                                     {displayName}
                                                     {cat.subcategory && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 rounded">Sub</span>}
                                                 </h4>
-                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatearDinero(enrichedCat.gastado || 0)} de {formatearDinero(enrichedCat.limite)}</p>
+                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatCurrency(enrichedCat.gastado || 0, 'COP')} de {formatCurrency(enrichedCat.limite, 'COP')}</p>
                                             </div>
                                             <div className="text-right">
                                                 <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${excedido ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
@@ -310,7 +303,7 @@ export default function Presupuestos({ currentContext }) {
                                         </div>
                                         {excedido && (
                                             <p className="text-[10px] font-bold text-red-500 mt-1.5 flex items-center gap-1">
-                                                <span className="material-symbols-outlined text-[12px]">error</span> Te pasaste por {formatearDinero((enrichedCat.gastado || 0) - enrichedCat.limite)}
+                                                <span className="material-symbols-outlined text-[12px]">error</span> Te pasaste por {formatCurrency((enrichedCat.gastado || 0) - enrichedCat.limite, 'COP')}
                                             </p>
                                         )}
                                     </div>
@@ -357,7 +350,7 @@ export default function Presupuestos({ currentContext }) {
                                         <div className="flex justify-between items-end mb-2">
                                             <div>
                                                 <h4 className="font-bold text-slate-700 text-sm">{meta.nombre}</h4>
-                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatearDinero(meta.ahorrado)} de {formatearDinero(meta.objetivo)}</p>
+                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatCurrency(meta.ahorrado, 'COP')} de {formatCurrency(meta.objetivo, 'COP')}</p>
                                             </div>
                                             <div className="text-right">
                                                 <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-purple-50 text-purple-600">

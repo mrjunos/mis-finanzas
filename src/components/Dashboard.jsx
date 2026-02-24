@@ -3,14 +3,7 @@ import Widget from './Widget';
 import TransactionModal from './TransactionModal';
 import { useFinance } from '../context/FinanceContext';
 import { format } from 'date-fns';
-
-const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-    }).format(value);
-};
+import { formatCurrency } from '../utils/format';
 
 export default function Dashboard({ currentContext, onNavigate }) {
     const { getTotals, deleteTransaction, loading } = useFinance();
@@ -58,7 +51,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
                         <h2 className="text-3xl font-extrabold text-slate-800">
-                            {primarySign}{formatCurrency(Math.abs(primaryValue))} <span className="text-lg font-bold text-slate-400">{primaryCurrency}</span>
+                            {primarySign}{formatCurrency(Math.abs(primaryValue), primaryCurrency)} <span className="text-lg font-bold text-slate-400">{primaryCurrency}</span>
                         </h2>
                         {secondaryCurrencies.length > 0 && (
                             <div className="mt-1 flex gap-2 text-[10px] font-bold text-slate-500">
@@ -66,7 +59,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                                     const amount = balances[cur];
                                     const sign = amount < 0 ? '-' : '+';
                                     return (
-                                        <span key={cur}>{sign} {formatCurrency(Math.abs(amount))} {cur}</span>
+                                        <span key={cur}>{sign} {formatCurrency(Math.abs(amount), cur)} {cur}</span>
                                     );
                                 })}
                             </div>
@@ -178,8 +171,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                                     };
 
                                     const currencyCode = tx.currency || 'USD';
-                                    const symbol = currencyCode === 'EUR' ? '€' : '$';
-                                    const formattedAmount = `${currencyCode} ${symbol}${Number(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                    const formattedAmount = formatCurrency(Number(tx.amount), currencyCode);
 
                                     // Make date formatting robust (Firestore Timestamp vs JS Date string)
                                     let txDate;
@@ -255,7 +247,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                             </div>
                             <div className="bg-white/40 p-4 rounded-xl border border-white/60">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Egresos Totales</p>
-                                <p className="text-xl font-extrabold text-slate-700">{formatCurrency(filteredTransactions.filter(t => t.type === 'debit').reduce((acc, t) => acc + Number(t.amount), 0))}</p>
+                                <p className="text-xl font-extrabold text-slate-700">{formatCurrency(filteredTransactions.filter(t => t.type === 'debit').reduce((acc, t) => acc + Number(t.amount), 0), 'COP')}</p>
                                 <div className="mt-2 text-[10px] text-green-600 font-bold flex items-center gap-1">
                                     <span className="material-symbols-outlined text-sm">check_circle</span> Al día
                                 </div>
