@@ -53,12 +53,6 @@ export default function Header({ currentContext, onContextChange, onMenuToggle }
                     </label>
                 </nav>
             </div>
-            <div className="hidden sm:flex items-center gap-3">
-                <div className="flex items-center bg-white/50 border border-white/80 rounded-lg px-3 py-1.5">
-                    <span className="material-symbols-outlined text-slate-400 text-lg">search</span>
-                    <input className="bg-transparent border-none text-xs focus:outline-none w-32 placeholder:text-slate-400" placeholder="Buscar transacciones..." type="text" />
-                </div>
-            </div>
         </header>
     );
 }
