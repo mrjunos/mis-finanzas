@@ -13,15 +13,6 @@ export default function Dashboard({ currentContext, onNavigate }) {
 
     const { netWorth, personalBalance, businessCashFlow, filteredTransactions } = getTotals(currentContext);
 
-    // Helper to get the total sum for a single currency
-    const getCurrencyTotal = (balances) => {
-        let total = 0;
-        for (const cur in balances) {
-            total += balances[cur];
-        }
-        return total;
-    };
-
     // Helper to render the multi-currency widget content
     const renderCurrencyWidgetContent = (title, balances, PrimaryIcon, iconClass, lineContent) => {
         const activeCurrencies = Object.keys(balances).filter(cur => balances[cur] !== 0);
@@ -177,7 +168,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                                     let txDate;
                                     try {
                                         txDate = tx.date && tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-                                    } catch (e) {
+                                    } catch {
                                         txDate = new Date();
                                     }
 

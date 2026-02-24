@@ -4,7 +4,20 @@ import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteD
 
 const FinanceContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useFinance = () => useContext(FinanceContext);
+
+const DEFAULT_CONFIG = {
+    currencies: ['COP', 'USD', 'EUR'],
+    accounts: ['Efectivo', 'Tarjeta de Crédito Principal', 'Cuenta Bancaria'],
+    categories: [
+        { name: 'Comida', subcategories: [] },
+        { name: 'Transporte', subcategories: [] },
+        { name: 'Servicios', subcategories: [] },
+        { name: 'Compras', subcategories: [] },
+        { name: 'Ingresos', subcategories: [] }
+    ]
+};
 
 export const FinanceProvider = ({ children }) => {
     const [transactions, setTransactions] = useState([]);
@@ -13,17 +26,7 @@ export const FinanceProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     // Global Config State
-    const [appConfig, setAppConfig] = useState({
-        currencies: ['COP', 'USD', 'EUR'],
-        accounts: ['Efectivo', 'Tarjeta de Crédito Principal', 'Cuenta Bancaria'],
-        categories: [
-            { name: 'Comida', subcategories: [] },
-            { name: 'Transporte', subcategories: [] },
-            { name: 'Servicios', subcategories: [] },
-            { name: 'Compras', subcategories: [] },
-            { name: 'Ingresos', subcategories: [] }
-        ]
-    });
+    const [appConfig, setAppConfig] = useState(DEFAULT_CONFIG);
 
     useEffect(() => {
         // Fetch Settings Configuration
@@ -46,7 +49,7 @@ export const FinanceProvider = ({ children }) => {
                     }
                 } else {
                     // Initialize default if it doesn't exist
-                    await setDoc(configRef, appConfig);
+                    await setDoc(configRef, DEFAULT_CONFIG);
                 }
             } catch (error) {
                 console.error("Error fetching config: ", error);

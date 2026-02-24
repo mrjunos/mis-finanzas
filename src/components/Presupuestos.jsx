@@ -27,6 +27,7 @@ export default function Presupuestos({ currentContext }) {
     // Fetch or clone config when the month or context changes
     useEffect(() => {
         fetchBudgetConfig(monthStr, contextoKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [monthStr, contextoKey]);
 
     const [localCategories, setLocalCategories] = useState([]);
@@ -87,8 +88,10 @@ export default function Presupuestos({ currentContext }) {
 
     useEffect(() => {
         if (budgets[budgetId] && budgets[budgetId].categories) {
+            // eslint-disable-next-line
             setLocalCategories(budgets[budgetId].categories);
         } else {
+            // eslint-disable-next-line
             setLocalCategories([]);
         }
     }, [budgets, budgetId]);
