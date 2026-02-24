@@ -44,7 +44,9 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 amount: editingTransaction.amount || '',
                 type: editingTransaction.type || 'debit',
                 context: editingTransaction.context || 'personal',
-                category: editingTransaction.category || categories?.[0]?.name || 'general',
+                category: (typeof editingTransaction.category === 'object'
+                    ? editingTransaction.category?.name
+                    : editingTransaction.category) || categories?.[0]?.name || 'general',
                 subcategory: editingTransaction.subcategory || '',
                 currency: editingTransaction.currency || appConfig?.currencies?.[0] || 'USD',
                 card: editingTransaction.card || appConfig?.accounts?.[0] || '',
@@ -168,7 +170,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                         )}
 
                         {mode === 'transfer' && (
-                             <div className="md:col-span-2">
+                            <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto</label>
                                 <input
                                     required

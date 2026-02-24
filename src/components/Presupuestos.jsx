@@ -88,10 +88,10 @@ export default function Presupuestos({ currentContext }) {
 
     useEffect(() => {
         if (budgets[budgetId] && budgets[budgetId].categories) {
-            // eslint-disable-next-line
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalCategories(budgets[budgetId].categories);
         } else {
-            // eslint-disable-next-line
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalCategories([]);
         }
     }, [budgets, budgetId]);

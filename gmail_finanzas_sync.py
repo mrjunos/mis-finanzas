@@ -124,6 +124,8 @@ def procesar_texto_con_ia(texto, model_name="llama3"):
     if doc.exists:
         data = doc.to_dict()
         categorias = data.get('categories', [])
+        # Extract just category names (categories may be objects with {name, subcategories})
+        categorias = [c['name'] if isinstance(c, dict) else c for c in categorias]
         cuentas = data.get('accounts', [])
         monedas = data.get('currencies', [])
         
@@ -210,14 +212,20 @@ def registrar_transaccion(datos_ia, fallback_date):
             tx_date = datetime.datetime.strptime(tx_date_str, "%Y-%m-%d").replace(hour=12)
         except ValueError:
             pass # Si la IA devolvió algo raro, usamos el fallback_date
-            
+
+    # Sanitizar category: la IA puede devolver un objeto en vez de string
+    raw_category = datos_ia.get('category', 'general')
+    if isinstance(raw_category, dict):
+        raw_category = raw_category.get('name', 'general')
+    category = str(raw_category) if raw_category else 'general'
+
     # Rellenar valores por defecto para no romper el esquema
     nueva_transaccion = {
         "type": datos_ia.get('type', 'debit'),
         "amount": float(datos_ia.get('amount', 0)),
         "currency": datos_ia.get('currency', 'COP'),
         "title": datos_ia.get('title', 'Sin concepto especificado'),
-        "category": datos_ia.get('category', 'general'),
+        "category": category,
         "card": datos_ia.get('card', 'general'),
         "comments": "Importado automáticamente desde Gmail via IA",
         "context": datos_ia.get('context', 'personal'),

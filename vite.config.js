@@ -9,4 +9,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
   },
+  server: {
+    host: true,
+    allowedHosts: ['.loca.lt']
+  }
 })

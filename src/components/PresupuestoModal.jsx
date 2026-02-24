@@ -18,14 +18,14 @@ export default function PresupuestoModal({ isOpen, onClose, currentContext, curr
 
     useEffect(() => {
         if (editingCategory) {
-            // eslint-disable-next-line
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 nombre: editingCategory.nombre || '',
                 subcategory: editingCategory.subcategory || '',
                 limite: editingCategory.limite || '',
             });
         } else {
-            // eslint-disable-next-line
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 nombre: categories?.[0]?.name || 'general',
                 subcategory: '',

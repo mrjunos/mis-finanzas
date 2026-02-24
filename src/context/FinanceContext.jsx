@@ -45,7 +45,7 @@ export const FinanceProvider = ({ children }) => {
                         // Update Firestore immediately to migrate persistence
                         await updateDoc(configRef, { categories: newCategories });
                     } else {
-                         setAppConfig(data);
+                        setAppConfig(data);
                     }
                 } else {
                     // Initialize default if it doesn't exist
@@ -72,9 +72,15 @@ export const FinanceProvider = ({ children }) => {
                     date = new Date();
                 }
 
+                // Normalize category: some docs store it as an object {name, subcategories}
+                const category = typeof data.category === 'object' && data.category?.name
+                    ? data.category.name
+                    : (data.category || 'general');
+
                 return {
                     id: doc.id,
                     ...data,
+                    category,
                     date: date // Ensure date is a Date object
                 };
             });

@@ -141,7 +141,7 @@ export default function Transactions({ currentContext }) {
                                 const curr = name.replace('Balance ', '');
                                 try {
                                     return [formatCurrency(value, curr), name];
-        } catch {
+                                } catch {
                                     return [`$${value}`, name];
                                 }
                             }}
