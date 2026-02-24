@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
@@ -179,13 +179,8 @@ export const FinanceProvider = ({ children }) => {
         }
     };
 
-    // Calculate balances based on context and transaction type
-    const getTotals = (contextFilter) => {
-        // filter transactions based on context ('personal', 'business' or 'unified')
-        const filtered = transactions.filter(t =>
-            contextFilter === 'unified' ? true : t.context === contextFilter
-        );
-
+    // Memoize global balance calculations to avoid re-computing on every render/call
+    const balances = useMemo(() => {
         const netWorth = {};
         const personalBalance = {};
         const businessCashFlow = {};
@@ -209,13 +204,21 @@ export const FinanceProvider = ({ children }) => {
             }
         });
 
+        return { netWorth, personalBalance, businessCashFlow };
+    }, [transactions]);
+
+    // Calculate balances based on context and transaction type
+    const getTotals = useCallback((contextFilter) => {
+        // filter transactions based on context ('personal', 'business' or 'unified')
+        const filtered = transactions.filter(t =>
+            contextFilter === 'unified' ? true : t.context === contextFilter
+        );
+
         return {
-            netWorth,
-            personalBalance,
-            businessCashFlow,
+            ...balances,
             filteredTransactions: filtered
         };
-    };
+    }, [transactions, balances]);
 
     // --- Metas / Goals Methods ---
     const addGoal = async (data) => {
