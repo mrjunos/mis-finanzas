@@ -2,7 +2,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import os
 
-FIREBASE_CREDENTIALS = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+# Busca en variable de entorno o usa el archivo por defecto
+default_creds = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS', default_creds)
 
 def clean_db():
     print("Conectando a Firebase...")

@@ -7,7 +7,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # Archivo de llave secreta de Firebase
-CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+# Busca en variable de entorno o usa el archivo por defecto
+default_creds = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+CREDENTIALS_FILE = os.getenv('FIREBASE_CREDENTIALS', default_creds)
 
 def conectar_db():
     if not firebase_admin._apps:
