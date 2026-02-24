@@ -12,8 +12,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 # Firebase
-import firebase_admin
-from firebase_admin import credentials as firebase_credentials, firestore
+from firebase_admin import firestore
+from utils import conectar_db
 
 # Ollama
 try:
@@ -29,17 +29,8 @@ CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'credentials.json')
 TOKEN_FILE = os.path.join(os.path.dirname(__file__), 'token.json')
 PROCESSED_FILE = os.path.join(os.path.dirname(__file__), 'processed_emails.txt')
 
-# IMPORTANTE: Cambia esta ruta si tu archivo de llaves de Firebase tiene otro nombre
-FIREBASE_CREDENTIALS = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
-
 # Etiqueta por defecto a buscar
 DEFAULT_LABEL = "Bancos/PendingBot" 
-
-def conectar_db():
-    if not firebase_admin._apps:
-        cred = firebase_credentials.Certificate(FIREBASE_CREDENTIALS)
-        firebase_admin.initialize_app(cred)
-    return firestore.client()
 
 def authenticate_gmail():
     """Autentica con la API de Gmail y devuelve el servicio."""

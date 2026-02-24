@@ -1,14 +1,8 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
-import os
-
-FIREBASE_CREDENTIALS = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+from utils import conectar_db
 
 def clean_db():
     print("Conectando a Firebase...")
-    cred = credentials.Certificate(FIREBASE_CREDENTIALS)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    db = conectar_db()
 
     print("Borrando todas las transacciones...")
     docs = db.collection('finance_transactions').stream()
