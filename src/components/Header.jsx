@@ -9,15 +9,15 @@ export default function Header({ currentContext, onContextChange, onMenuToggle }
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
                     </button>
-                    <div className="w-9 h-9 bg-gradient-to-tr from-primary to-secondary rounded-xl flex items-center justify-center text-white shadow-md">
+                    <div className="hidden md:flex w-9 h-9 bg-gradient-to-tr from-primary to-secondary rounded-xl items-center justify-center text-white shadow-md">
                         <span className="material-symbols-outlined text-xl">donut_small</span>
                     </div>
-                    <div className="hidden sm:block">
+                    <div className="hidden md:block">
                         <h1 className="text-base font-bold tracking-tight text-slate-800 leading-none">Mis Finanzas</h1>
                         <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Dashboard Personal</p>
                     </div>
                 </div>
-                <nav className="hidden md:flex bg-slate-100/50 p-1 rounded-xl items-center gap-1">
+                <nav className="flex bg-slate-100/50 p-1 rounded-xl items-center gap-1">
                     <label className="cursor-pointer">
                         <input
                             className="peer sr-only"
