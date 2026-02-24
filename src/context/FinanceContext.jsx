@@ -75,6 +75,7 @@ export const FinanceProvider = ({ children }) => {
                     date: date // Ensure date is a Date object
                 };
             });
+
             // Sort by date descending
             txs.sort((a, b) => b.date.getTime() - a.date.getTime());
             setTransactions(txs);

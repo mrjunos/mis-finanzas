@@ -7,12 +7,22 @@
  * @returns {string} The formatted currency string.
  */
 export const formatCurrency = (value, currency = 'COP') => {
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: currency === 'COP' ? 0 : 2,
-        maximumFractionDigits: currency === 'COP' ? 0 : 2,
-    }).format(value);
+    try {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: currency,
+            minimumFractionDigits: currency === 'COP' ? 0 : 2,
+            maximumFractionDigits: currency === 'COP' ? 0 : 2,
+        }).format(value);
+    } catch (error) {
+        console.warn(`Invalid currency code: "${currency}". Falling back to USD. Error:`, error);
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(value);
+    }
 };
 
 /**
