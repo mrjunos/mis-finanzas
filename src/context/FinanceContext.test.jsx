@@ -51,7 +51,7 @@ describe('FinanceProvider', () => {
         mockGetDoc.mockResolvedValue({ exists: () => false, data: () => null });
 
         // Default: onSnapshot immediately fires with empty docs
-        mockOnSnapshot.mockImplementation((collectionRef, successCb, errorCb) => {
+        mockOnSnapshot.mockImplementation((collectionRef, successCb) => {
             successCb({ docs: [] });
             return vi.fn(); // unsubscribe
         });
@@ -184,7 +184,7 @@ describe('FinanceProvider', () => {
     it('processes transactions from snapshot with normalized data', async () => {
         let contextValue;
 
-        mockOnSnapshot.mockImplementation((collectionRef, successCb, errorCb) => {
+        mockOnSnapshot.mockImplementation((collectionRef, successCb) => {
             // First call = transactions, second call = goals
             if (mockOnSnapshot.mock.calls.length <= 1) {
                 successCb({
