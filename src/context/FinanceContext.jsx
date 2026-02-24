@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { normalizeCategory, parseTransactionDate, calculateBalances } from '../utils/financeHelpers';
 
 const FinanceContext = createContext();
 
@@ -63,25 +64,14 @@ export const FinanceProvider = ({ children }) => {
         const unsubscribeTransactions = onSnapshot(collection(db, 'finance_transactions'), (snapshot) => {
             const txs = snapshot.docs.map(doc => {
                 const data = doc.data();
-                let date;
-                if (data.date && typeof data.date.toDate === 'function') {
-                    date = data.date.toDate();
-                } else if (data.date) {
-                    date = new Date(data.date);
-                } else {
-                    date = new Date();
-                }
-
-                // Normalize category: some docs store it as an object {name, subcategories}
-                const category = typeof data.category === 'object' && data.category?.name
-                    ? data.category.name
-                    : (data.category || 'general');
+                const date = parseTransactionDate(data.date);
+                const category = normalizeCategory(data.category);
 
                 return {
                     id: doc.id,
                     ...data,
                     category,
-                    date: date // Ensure date is a Date object
+                    date,
                 };
             });
 
@@ -202,32 +192,7 @@ export const FinanceProvider = ({ children }) => {
     };
 
     // Memoize global balance calculations to avoid re-computing on every render/call
-    const balances = useMemo(() => {
-        const netWorth = {};
-        const personalBalance = {};
-        const businessCashFlow = {};
-
-        transactions.forEach(t => {
-            const amount = t.type === 'credit' ? Number(t.amount) : -Number(t.amount);
-            const currency = t.currency || 'USD'; // Fallback to USD for older transactions
-
-            // Initialize currencies if they don't exist
-            if (!netWorth[currency]) netWorth[currency] = 0;
-            if (!personalBalance[currency]) personalBalance[currency] = 0;
-            if (!businessCashFlow[currency]) businessCashFlow[currency] = 0;
-
-            // For unified net worth, we add everything unless specified otherwise
-            netWorth[currency] += amount;
-
-            if (t.context === 'personal') {
-                personalBalance[currency] += amount;
-            } else if (t.context === 'business') {
-                businessCashFlow[currency] += amount;
-            }
-        });
-
-        return { netWorth, personalBalance, businessCashFlow };
-    }, [transactions]);
+    const balances = useMemo(() => calculateBalances(transactions), [transactions]);
 
     // Calculate balances based on context and transaction type
     const getTotals = useCallback((contextFilter) => {
