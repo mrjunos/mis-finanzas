@@ -16,7 +16,13 @@ export const FinanceProvider = ({ children }) => {
     const [appConfig, setAppConfig] = useState({
         currencies: ['COP', 'USD', 'EUR'],
         accounts: ['Efectivo', 'Tarjeta de Crédito Principal', 'Cuenta Bancaria'],
-        categories: ['Comida', 'Transporte', 'Servicios', 'Compras', 'Ingresos']
+        categories: [
+            { name: 'Comida', subcategories: [] },
+            { name: 'Transporte', subcategories: [] },
+            { name: 'Servicios', subcategories: [] },
+            { name: 'Compras', subcategories: [] },
+            { name: 'Ingresos', subcategories: [] }
+        ]
     });
 
     useEffect(() => {
@@ -27,14 +33,24 @@ export const FinanceProvider = ({ children }) => {
                 const configSnap = await getDoc(configRef);
 
                 if (configSnap.exists()) {
-                    setAppConfig(configSnap.data());
+                    const data = configSnap.data();
+                    // Migration: Check if categories are strings, if so convert to objects
+                    if (data.categories && data.categories.length > 0 && typeof data.categories[0] === 'string') {
+                        const newCategories = data.categories.map(cat => ({ name: cat, subcategories: [] }));
+                        const migratedConfig = { ...data, categories: newCategories };
+                        setAppConfig(migratedConfig);
+                        // Update Firestore immediately to migrate persistence
+                        await updateDoc(configRef, { categories: newCategories });
+                    } else {
+                         setAppConfig(data);
+                    }
                 } else {
                     // Initialize default if it doesn't exist
                     await setDoc(configRef, appConfig);
                 }
             } catch (error) {
                 console.error("Error fetching config: ", error);
-                setLoading(false); // Make sure to stop loading if it fails
+                // Do not set loading false here, wait for transactions
             }
         };
 
