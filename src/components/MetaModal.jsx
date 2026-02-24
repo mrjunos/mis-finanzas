@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 
 export default function MetaModal({ isOpen, onClose, currentContext, editingMeta }) {
-    const { addGoal, updateGoal } = useFinance();
+    const { addGoal, updateGoal, appConfig } = useFinance();
     const [formData, setFormData] = useState({
         nombre: '',
         objetivo: '',
-        ahorrado: '',
+        cuenta: '',
         contexto: currentContext || 'personal',
     });
 
@@ -15,18 +15,18 @@ export default function MetaModal({ isOpen, onClose, currentContext, editingMeta
             setFormData({
                 nombre: editingMeta.nombre || '',
                 objetivo: editingMeta.objetivo || '',
-                ahorrado: editingMeta.ahorrado || '0',
+                cuenta: editingMeta.cuenta || '',
                 contexto: editingMeta.contexto || currentContext || 'personal',
             });
         } else {
             setFormData({
                 nombre: '',
                 objetivo: '',
-                ahorrado: '0',
+                cuenta: appConfig?.accounts?.[0] || '',
                 contexto: currentContext === 'unified' ? 'personal' : (currentContext || 'personal'),
             });
         }
-    }, [editingMeta, currentContext]);
+    }, [editingMeta, currentContext, appConfig]);
 
     if (!isOpen) return null;
 
@@ -36,7 +36,7 @@ export default function MetaModal({ isOpen, onClose, currentContext, editingMeta
             const dataToSave = {
                 nombre: formData.nombre,
                 objetivo: Number(formData.objetivo),
-                ahorrado: Number(formData.ahorrado),
+                cuenta: formData.cuenta,
                 contexto: formData.contexto,
             };
 
@@ -84,29 +84,32 @@ export default function MetaModal({ isOpen, onClose, currentContext, editingMeta
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Objetivo Final ($)</label>
-                            <input
-                                required
-                                type="number"
-                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                                placeholder="0"
-                                value={formData.objetivo}
-                                onChange={(e) => setFormData({ ...formData, objetivo: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ahorrado ($)</label>
-                            <input
-                                required
-                                type="number"
-                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                                placeholder="0"
-                                value={formData.ahorrado}
-                                onChange={(e) => setFormData({ ...formData, ahorrado: e.target.value })}
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Objetivo Final ($)</label>
+                        <input
+                            required
+                            type="number"
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                            placeholder="0"
+                            value={formData.objetivo}
+                            onChange={(e) => setFormData({ ...formData, objetivo: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cuenta vinculada</label>
+                        <select
+                            required
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                            value={formData.cuenta}
+                            onChange={(e) => setFormData({ ...formData, cuenta: e.target.value })}
+                        >
+                            <option value="">Selecciona una cuenta...</option>
+                            {appConfig?.accounts?.map(acc => (
+                                <option key={acc} value={acc}>{acc}</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1">Los créditos a esta cuenta se sumarán al progreso de la meta.</p>
                     </div>
 
                     <div>

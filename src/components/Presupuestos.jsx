@@ -7,7 +7,7 @@ import { format, subMonths, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function Presupuestos({ currentContext }) {
-    const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, appConfig } = useFinance();
+    const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, appConfig, transactions } = useFinance();
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
@@ -29,30 +29,79 @@ export default function Presupuestos({ currentContext }) {
     }, [monthStr, contextoKey]);
 
     const [localCategories, setLocalCategories] = useState([]);
-    const [gastadoReal, setGastadoReal] = useState(0);
+
+    // Filter transactions for the current month and context
+    const monthTransactions = useMemo(() => {
+        const [year, month] = monthStr.split('-').map(Number);
+        return transactions.filter(t => {
+            const d = t.date instanceof Date ? t.date : new Date(t.date);
+            return d.getFullYear() === year && (d.getMonth() + 1) === month;
+        });
+    }, [transactions, monthStr]);
+
+    // Compute per-category spending from real transactions (only debits)
+    const categorySpending = useMemo(() => {
+        const contextFiltered = monthTransactions.filter(t => {
+            if (contextoKey === 'personal') return t.context === 'personal';
+            if (contextoKey === 'business') return t.context === 'business';
+            return true;
+        });
+        const spending = {};
+        contextFiltered.forEach(t => {
+            if (t.type === 'debit' && t.category) {
+                const catName = t.category;
+                spending[catName] = (spending[catName] || 0) + Number(t.amount);
+            }
+        });
+        return spending;
+    }, [monthTransactions, contextoKey]);
+
+    // Enrich localCategories with real spending
+    const enrichedCategories = useMemo(() => {
+        return localCategories.map(cat => ({
+            ...cat,
+            gastado: categorySpending[cat.nombre] || 0,
+        }));
+    }, [localCategories, categorySpending]);
+
+    const gastadoReal = useMemo(() => {
+        return enrichedCategories.reduce((acc, cat) => acc + cat.gastado, 0);
+    }, [enrichedCategories]);
 
     useEffect(() => {
         if (budgets[budgetId] && budgets[budgetId].categories) {
             setLocalCategories(budgets[budgetId].categories);
-            // Note: Real spending calculation mapping against 'finance_transactions' would go here by filtering transactions by month and category
-            // For now, we sum what was stored.
-            const total = budgets[budgetId].categories.reduce((acc, cat) => acc + (cat.gastado || 0), 0);
-            setGastadoReal(total);
         } else {
             setLocalCategories([]);
-            setGastadoReal(0);
         }
     }, [budgets, budgetId]);
 
     const presupuestadoTotal = useMemo(() => {
-        return localCategories.reduce((acc, cat) => acc + Number(cat.limite), 0);
-    }, [localCategories]);
+        return enrichedCategories.reduce((acc, cat) => acc + Number(cat.limite), 0);
+    }, [enrichedCategories]);
 
-    // Derived Goals Filtering
+    // Compute goal progress from account credits (all-time)
+    const goalSavings = useMemo(() => {
+        const savings = {};
+        goals.forEach(goal => {
+            if (goal.cuenta) {
+                const total = transactions
+                    .filter(t => t.type === 'credit' && t.account === goal.cuenta)
+                    .reduce((acc, t) => acc + Number(t.amount), 0);
+                savings[goal.id] = total;
+            }
+        });
+        return savings;
+    }, [transactions, goals]);
+
+    // Derived Goals Filtering with computed savings
     const localGoals = useMemo(() => {
-        // General view mixes all goals? Usually we just show the ones matching the context.
-        return goals.filter(g => currentContext === 'unified' ? true : g.contexto === currentContext);
-    }, [goals, currentContext]);
+        const filtered = goals.filter(g => currentContext === 'unified' ? true : g.contexto === currentContext);
+        return filtered.map(g => ({
+            ...g,
+            ahorrado: goalSavings[g.id] || 0,
+        }));
+    }, [goals, currentContext, goalSavings]);
 
     const handleSaveBudgetConfig = async (categoryData, isEditing) => {
         let updatedCategories = [...localCategories];
@@ -89,12 +138,16 @@ export default function Presupuestos({ currentContext }) {
         const personalBudget = budgets[`${monthStr}_personal`]?.categories || [];
         const businessBudget = budgets[`${monthStr}_business`]?.categories || [];
 
+        // Compute real spending for personal context
+        const pSpending = monthTransactions.filter(t => t.context === 'personal' && t.type === 'debit');
+        const pGastado = pSpending.reduce((a, t) => a + Number(t.amount), 0);
         const pTotal = personalBudget.reduce((a, c) => a + c.limite, 0);
-        const pGastado = personalBudget.reduce((a, c) => a + (c.gastado || 0), 0);
         const saludPersonal = pTotal > 0 ? (pGastado / pTotal) * 100 : 0;
 
+        // Compute real spending for business context
+        const bSpending = monthTransactions.filter(t => t.context === 'business' && t.type === 'debit');
+        const bGastado = bSpending.reduce((a, t) => a + Number(t.amount), 0);
         const bTotal = businessBudget.reduce((a, c) => a + c.limite, 0);
-        const bGastado = businessBudget.reduce((a, c) => a + (c.gastado || 0), 0);
         const saludNegocio = bTotal > 0 ? (bGastado / bTotal) * 100 : 0;
 
         return (
@@ -104,11 +157,7 @@ export default function Presupuestos({ currentContext }) {
                     <div className="flex justify-between items-start mb-4">
                         <div>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Salud Presupuesto Personal</p>
-                            <h2 className="text-3xl font-extrabold text-slate-800">
-                                {budgets[`${monthStr}_personal`] && budgets[`${monthStr}_personal`].categories.reduce((a, c) => a + c.limite, 0) > 0
-                                    ? ((budgets[`${monthStr}_personal`].categories.reduce((a, c) => a + c.gastado, 0) / budgets[`${monthStr}_personal`].categories.reduce((a, c) => a + c.limite, 0)) * 100).toFixed(1)
-                                    : '0.0'}%
-                            </h2>
+                            <h2 className="text-3xl font-extrabold text-slate-800">{saludPersonal.toFixed(1)}%</h2>
                             <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Consumido este mes</p>
                         </div>
                         <div className="w-10 h-10 bg-primary/10 rounded-xl text-primary-dark flex items-center justify-center">
@@ -128,11 +177,7 @@ export default function Presupuestos({ currentContext }) {
                     <div className="flex justify-between items-start mb-4">
                         <div>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Salud Presupuesto Negocio</p>
-                            <h2 className="text-3xl font-extrabold text-slate-800">
-                                {budgets[`${monthStr}_business`] && budgets[`${monthStr}_business`].categories.reduce((a, c) => a + c.limite, 0) > 0
-                                    ? ((budgets[`${monthStr}_business`].categories.reduce((a, c) => a + c.gastado, 0) / budgets[`${monthStr}_business`].categories.reduce((a, c) => a + c.limite, 0)) * 100).toFixed(1)
-                                    : '0.0'}%
-                            </h2>
+                            <h2 className="text-3xl font-extrabold text-slate-800">{saludNegocio.toFixed(1)}%</h2>
                             <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Consumido este mes</p>
                         </div>
                         <div className="w-10 h-10 bg-secondary/10 rounded-xl text-secondary flex items-center justify-center">
@@ -211,8 +256,9 @@ export default function Presupuestos({ currentContext }) {
                             <p className="text-xs text-slate-500 py-4 text-center">No hay presupuesto configurado para este mes aún.</p>
                         ) : (
                             localCategories.map((cat, index) => {
-                                const porcentaje = calcularPorcentaje(cat.gastado || 0, cat.limite);
-                                const excedido = (cat.gastado || 0) > cat.limite;
+                                const enrichedCat = enrichedCategories[index] || cat;
+                                const porcentaje = calcularPorcentaje(enrichedCat.gastado || 0, enrichedCat.limite);
+                                const excedido = (enrichedCat.gastado || 0) > enrichedCat.limite;
 
                                 return (
                                     <div
@@ -225,8 +271,8 @@ export default function Presupuestos({ currentContext }) {
                                     >
                                         <div className="flex justify-between items-end mb-2">
                                             <div>
-                                                <h4 className="font-bold text-slate-700 text-sm">{cat.nombre}</h4>
-                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatearDinero(cat.gastado || 0)} de {formatearDinero(cat.limite)}</p>
+                                                <h4 className="font-bold text-slate-700 text-sm">{enrichedCat.nombre}</h4>
+                                                <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatearDinero(enrichedCat.gastado || 0)} de {formatearDinero(enrichedCat.limite)}</p>
                                             </div>
                                             <div className="text-right">
                                                 <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${excedido ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
@@ -242,7 +288,7 @@ export default function Presupuestos({ currentContext }) {
                                         </div>
                                         {excedido && (
                                             <p className="text-[10px] font-bold text-red-500 mt-1.5 flex items-center gap-1">
-                                                <span className="material-symbols-outlined text-[12px]">error</span> Te pasaste por {formatearDinero((cat.gastado || 0) - cat.limite)}
+                                                <span className="material-symbols-outlined text-[12px]">error</span> Te pasaste por {formatearDinero((enrichedCat.gastado || 0) - enrichedCat.limite)}
                                             </p>
                                         )}
                                     </div>
