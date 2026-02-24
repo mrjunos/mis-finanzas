@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Timestamp } from 'firebase/firestore';
 
 export default function TransactionModal({ isOpen, onClose, editingTransaction }) {
     const { addTransaction, updateTransaction, appConfig } = useFinance();
+
+    // Helper to normalize categories access
+    const categories = useMemo(() => {
+        if (!appConfig?.categories) return [];
+        return appConfig.categories.map(c => typeof c === 'string' ? { name: c, subcategories: [] } : c);
+    }, [appConfig]);
+
     const [formData, setFormData] = useState({
         title: '',
         amount: '',
         type: 'debit',
         context: 'personal',
-        category: appConfig?.categories?.[0] || 'general',
+        category: categories?.[0]?.name || 'general',
+        subcategory: '',
         currency: appConfig?.currencies?.[0] || 'USD',
         card: appConfig?.accounts?.[0] || '',
         date: '',
@@ -32,7 +40,8 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction }
                 amount: editingTransaction.amount || '',
                 type: editingTransaction.type || 'debit',
                 context: editingTransaction.context || 'personal',
-                category: editingTransaction.category || appConfig?.categories?.[0] || 'general',
+                category: editingTransaction.category || categories?.[0]?.name || 'general',
+                subcategory: editingTransaction.subcategory || '',
                 currency: editingTransaction.currency || appConfig?.currencies?.[0] || 'USD',
                 card: editingTransaction.card || appConfig?.accounts?.[0] || '',
                 date: formattedDate,
@@ -40,13 +49,25 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction }
             });
         } else {
             setFormData({
-                title: '', amount: '', type: 'debit', context: 'personal',
-                category: appConfig?.categories?.[0] || 'general',
+                title: '',
+                amount: '',
+                type: 'debit',
+                context: 'personal',
+                category: categories?.[0]?.name || 'general',
+                subcategory: '',
                 currency: appConfig?.currencies?.[0] || 'USD',
-                card: appConfig?.accounts?.[0] || '', date: '', comments: ''
+                card: appConfig?.accounts?.[0] || '',
+                date: '',
+                comments: ''
             });
         }
-    }, [editingTransaction, appConfig]);
+    }, [editingTransaction, appConfig, categories]);
+
+    // Get subcategories for currently selected category
+    const currentSubcategories = useMemo(() => {
+        const cat = categories.find(c => c.name === formData.category);
+        return cat ? cat.subcategories : [];
+    }, [categories, formData.category]);
 
     if (!isOpen) return null;
 
@@ -62,6 +83,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction }
                 type: formData.type,
                 context: formData.context,
                 category: formData.category,
+                subcategory: formData.subcategory, // Save subcategory
                 currency: formData.currency,
                 card: formData.card,
                 comments: formData.comments,
@@ -187,18 +209,42 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction }
                                 <option value="business">Negocio</option>
                             </select>
                         </div>
+
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
                             <select
                                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                onChange={(e) => {
+                                    setFormData({
+                                        ...formData,
+                                        category: e.target.value,
+                                        subcategory: '' // Reset subcategory when category changes
+                                    });
+                                }}
                             >
-                                {appConfig?.categories && appConfig.categories.map(category => (
-                                    <option key={category} value={category}>{category}</option>
+                                {categories.map(cat => (
+                                    <option key={cat.name} value={cat.name}>{cat.name}</option>
                                 ))}
                             </select>
                         </div>
+
+                        {/* Subcategory Select - Only if category has subcategories */}
+                        {currentSubcategories.length > 0 && (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subcategoría</label>
+                                <select
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    value={formData.subcategory}
+                                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                >
+                                    <option value="">(Sin subcategoría)</option>
+                                    {currentSubcategories.map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Comentarios</label>

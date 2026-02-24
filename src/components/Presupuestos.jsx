@@ -7,7 +7,7 @@ import { format, subMonths, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function Presupuestos({ currentContext }) {
-    const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, appConfig, transactions } = useFinance();
+    const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, transactions } = useFinance();
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
@@ -39,30 +39,46 @@ export default function Presupuestos({ currentContext }) {
         });
     }, [transactions, monthStr]);
 
-    // Compute per-category spending from real transactions (only debits)
-    const categorySpending = useMemo(() => {
+    // Compute spending map (Key: "Category-Subcategory" or "Category-ALL")
+    const spendingMap = useMemo(() => {
+        const map = {};
         const contextFiltered = monthTransactions.filter(t => {
             if (contextoKey === 'personal') return t.context === 'personal';
             if (contextoKey === 'business') return t.context === 'business';
             return true;
         });
-        const spending = {};
+
         contextFiltered.forEach(t => {
             if (t.type === 'debit' && t.category) {
-                const catName = t.category;
-                spending[catName] = (spending[catName] || 0) + Number(t.amount);
+                const amount = Number(t.amount);
+
+                // 1. Total Category Spending (matches budget items without subcategory)
+                const catKey = `${t.category}-ALL`;
+                map[catKey] = (map[catKey] || 0) + amount;
+
+                // 2. Specific Subcategory Spending (matches budget items with subcategory)
+                if (t.subcategory) {
+                    const subKey = `${t.category}-${t.subcategory}`;
+                    map[subKey] = (map[subKey] || 0) + amount;
+                }
             }
         });
-        return spending;
+        return map;
     }, [monthTransactions, contextoKey]);
+
+    // Helper to generate unique ID for budget item
+    const getBudgetId = (cat) => `${cat.nombre}-${cat.subcategory || 'ALL'}`;
 
     // Enrich localCategories with real spending
     const enrichedCategories = useMemo(() => {
-        return localCategories.map(cat => ({
-            ...cat,
-            gastado: categorySpending[cat.nombre] || 0,
-        }));
-    }, [localCategories, categorySpending]);
+        return localCategories.map(cat => {
+            const key = getBudgetId(cat);
+            return {
+                ...cat,
+                gastado: spendingMap[key] || 0,
+            };
+        });
+    }, [localCategories, spendingMap]);
 
     const gastadoReal = useMemo(() => {
         return enrichedCategories.reduce((acc, cat) => acc + cat.gastado, 0);
@@ -105,14 +121,16 @@ export default function Presupuestos({ currentContext }) {
 
     const handleSaveBudgetConfig = async (categoryData, isEditing) => {
         let updatedCategories = [...localCategories];
+        const newDataId = getBudgetId(categoryData);
 
-        if (isEditing) {
-            updatedCategories = updatedCategories.map(cat => cat.nombre === categoryData.nombre ? categoryData : cat);
+        if (isEditing && editingCategory) {
+            const originalId = getBudgetId(editingCategory);
+            // Replace the item that matches the original ID
+            updatedCategories = updatedCategories.map(cat => getBudgetId(cat) === originalId ? categoryData : cat);
         } else {
             // Prevent duplicate append
-            const exists = updatedCategories.find(cat => cat.nombre === categoryData.nombre);
-            if (exists) {
-                alert("Esta categoría ya tiene un presupuesto para este mes.");
+            if (updatedCategories.find(cat => getBudgetId(cat) === newDataId)) {
+                alert("Este presupuesto (Categoría/Subcategoría) ya existe.");
                 return;
             }
             updatedCategories.push(categoryData);
@@ -207,7 +225,6 @@ export default function Presupuestos({ currentContext }) {
 
         // Vars for color depending on context
         const brandColor = currentContext === 'business' ? 'secondary' : 'primary';
-        const brandColorHex = currentContext === 'business' ? '#818cf8' : '#13ecda';
         const bgBrand = currentContext === 'business' ? 'bg-secondary' : 'bg-primary';
 
         return (
@@ -260,6 +277,8 @@ export default function Presupuestos({ currentContext }) {
                                 const porcentaje = calcularPorcentaje(enrichedCat.gastado || 0, enrichedCat.limite);
                                 const excedido = (enrichedCat.gastado || 0) > enrichedCat.limite;
 
+                                const displayName = cat.subcategory ? `${cat.nombre} › ${cat.subcategory}` : cat.nombre;
+
                                 return (
                                     <div
                                         key={index}
@@ -271,7 +290,10 @@ export default function Presupuestos({ currentContext }) {
                                     >
                                         <div className="flex justify-between items-end mb-2">
                                             <div>
-                                                <h4 className="font-bold text-slate-700 text-sm">{enrichedCat.nombre}</h4>
+                                                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                                    {displayName}
+                                                    {cat.subcategory && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 rounded">Sub</span>}
+                                                </h4>
                                                 <p className="text-[10px] font-medium uppercase text-slate-400 mt-0.5 tracking-wide">{formatearDinero(enrichedCat.gastado || 0)} de {formatearDinero(enrichedCat.limite)}</p>
                                             </div>
                                             <div className="text-right">
