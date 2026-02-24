@@ -27,3 +27,8 @@ dist-ssr
 *.json
 !package.json
 !package-lock.json
+
+
+# Python
+__pycache__/
+*.pyc
