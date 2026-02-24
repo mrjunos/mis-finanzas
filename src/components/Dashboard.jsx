@@ -16,6 +16,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
     const { getTotals, deleteTransaction, loading } = useFinance();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
+    const [modalMode, setModalMode] = useState('transaction');
 
     const { netWorth, personalBalance, businessCashFlow, filteredTransactions } = getTotals(currentContext);
 
@@ -130,7 +131,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                     )}
                     <div className="grid grid-cols-2 gap-3">
                         <button
-                            onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}
+                            onClick={() => { setEditingTransaction(null); setModalMode('transaction'); setIsModalOpen(true); }}
                             className="glass-panel rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white hover:border-primary/30 transition-all border border-transparent"
                         >
                             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary-dark flex items-center justify-center">
@@ -139,7 +140,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                             <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Agregar</span>
                         </button>
                         <button
-                            onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}
+                            onClick={() => { setEditingTransaction(null); setModalMode('transfer'); setIsModalOpen(true); }}
                             className="glass-panel rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white hover:border-secondary/30 transition-all border border-transparent"
                         >
                             <div className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
@@ -194,6 +195,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                                             className="flex items-center gap-3 p-2 hover:bg-white/50 rounded-xl transition-colors cursor-pointer group"
                                             onClick={() => {
                                                 setEditingTransaction(tx);
+                                                setModalMode('transaction');
                                                 setIsModalOpen(true);
                                             }}
                                         >
@@ -276,6 +278,7 @@ export default function Dashboard({ currentContext, onNavigate }) {
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }}
                 editingTransaction={editingTransaction}
+                initialMode={modalMode}
             />
         </div>
     );

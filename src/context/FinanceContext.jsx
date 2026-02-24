@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 const FinanceContext = createContext();
 
@@ -109,6 +109,50 @@ export const FinanceProvider = ({ children }) => {
             });
         } catch (error) {
             console.error("Error adding document: ", error);
+            throw error;
+        }
+    };
+
+    const addTransfer = async (transferData) => {
+        try {
+            const batch = writeBatch(db);
+            const txCollection = collection(db, 'finance_transactions');
+
+            // Outflow (Egreso)
+            const outflowRef = doc(txCollection);
+            batch.set(outflowRef, {
+                title: transferData.title || 'Transferencia Enviada',
+                amount: Number(transferData.amount),
+                type: 'debit',
+                context: transferData.sourceContext,
+                category: 'Transferencia',
+                subcategory: '',
+                currency: transferData.currency,
+                card: transferData.sourceAccount,
+                comments: transferData.comments || '',
+                date: transferData.date || Timestamp.now(),
+                isTransfer: true,
+            });
+
+            // Inflow (Ingreso)
+            const inflowRef = doc(txCollection);
+            batch.set(inflowRef, {
+                title: transferData.title || 'Transferencia Recibida',
+                amount: Number(transferData.amount),
+                type: 'credit',
+                context: transferData.destinationContext,
+                category: 'Transferencia',
+                subcategory: '',
+                currency: transferData.currency,
+                card: transferData.destinationAccount,
+                comments: transferData.comments || '',
+                date: transferData.date || Timestamp.now(),
+                isTransfer: true,
+            });
+
+            await batch.commit();
+        } catch (error) {
+            console.error("Error adding transfer: ", error);
             throw error;
         }
     };
@@ -272,6 +316,7 @@ export const FinanceProvider = ({ children }) => {
         goals,
         loading,
         addTransaction,
+        addTransfer,
         deleteTransaction,
         updateTransaction,
         getTotals,
