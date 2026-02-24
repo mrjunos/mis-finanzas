@@ -30,7 +30,9 @@ TOKEN_FILE = os.path.join(os.path.dirname(__file__), 'token.json')
 PROCESSED_FILE = os.path.join(os.path.dirname(__file__), 'processed_emails.txt')
 
 # IMPORTANTE: Cambia esta ruta si tu archivo de llaves de Firebase tiene otro nombre
-FIREBASE_CREDENTIALS = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+# Busca en variable de entorno o usa el archivo por defecto
+default_creds = os.path.join(os.path.dirname(__file__), 'firebase-adminsdk-fbsvc-bb7cb78f3e.json')
+FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS', default_creds)
 
 # Etiqueta por defecto a buscar
 DEFAULT_LABEL = "Bancos/PendingBot" 
