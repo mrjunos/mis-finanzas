@@ -8,7 +8,7 @@ import { FinanceProvider } from './context/FinanceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Transactions from './components/Transactions';
-
+import Presupuestos from './components/Presupuestos';
 function AppContent() {
   const { currentUser } = useAuth();
   const [context, setContext] = useState('unified'); // 'personal', 'unified', 'business'
@@ -38,6 +38,8 @@ function AppContent() {
                 <Settings />
               ) : currentView === 'transactions' ? (
                 <Transactions currentContext={context} />
+              ) : currentView === 'presupuestos' ? (
+                <Presupuestos currentContext={context} />
               ) : null}
             </main>
           </div>

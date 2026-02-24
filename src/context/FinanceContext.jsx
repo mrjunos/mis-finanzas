@@ -8,6 +8,8 @@ export const useFinance = () => useContext(FinanceContext);
 
 export const FinanceProvider = ({ children }) => {
     const [transactions, setTransactions] = useState([]);
+    const [budgets, setBudgets] = useState({});
+    const [goals, setGoals] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Global Config State
@@ -39,7 +41,7 @@ export const FinanceProvider = ({ children }) => {
         fetchConfig();
 
         // Subscribe to transactions collection
-        const unsubscribe = onSnapshot(collection(db, 'finance_transactions'), (snapshot) => {
+        const unsubscribeTransactions = onSnapshot(collection(db, 'finance_transactions'), (snapshot) => {
             const txs = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
@@ -54,8 +56,22 @@ export const FinanceProvider = ({ children }) => {
             setLoading(false); // Make sure it stops loading even on error
         });
 
-        // Cleanup subscription on unmount
-        return () => unsubscribe();
+        // Subscribe to goals collection
+        const unsubscribeGoals = onSnapshot(collection(db, 'finance_goals'), (snapshot) => {
+            const goalsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setGoals(goalsData);
+        }, (error) => {
+            console.error("Error fetching goals:", error);
+        });
+
+        // Cleanup subscriptions on unmount
+        return () => {
+            unsubscribeTransactions();
+            unsubscribeGoals();
+        }
     }, []);
 
     const updateAppConfig = async (newConfig) => {
@@ -141,15 +157,115 @@ export const FinanceProvider = ({ children }) => {
         };
     };
 
+    // --- Metas / Goals Methods ---
+    const addGoal = async (data) => {
+        try {
+            await addDoc(collection(db, 'finance_goals'), data);
+        } catch (error) {
+            console.error("Error adding goal: ", error);
+            throw error;
+        }
+    };
+
+    const updateGoal = async (id, data) => {
+        try {
+            await updateDoc(doc(db, 'finance_goals', id), data);
+        } catch (error) {
+            console.error("Error updating goal: ", error);
+            throw error;
+        }
+    };
+
+    const deleteGoal = async (id) => {
+        try {
+            await deleteDoc(doc(db, 'finance_goals', id));
+        } catch (error) {
+            console.error("Error deleting goal: ", error);
+            throw error;
+        }
+    };
+
+    // --- Presupuestos / Budgets Methods (Automatic Cloning) ---
+    // Fetch budget for a specific month and context. If not found, attempts to clone the previous month.
+    const fetchBudgetConfig = async (monthStr, context) => {
+        try {
+            const budgetId = `${monthStr}_${context}`;
+            const budgetRef = doc(db, 'finance_budgets', budgetId);
+            const budgetSnap = await getDoc(budgetRef);
+
+            if (budgetSnap.exists()) {
+                const data = budgetSnap.data();
+                setBudgets(prev => ({ ...prev, [budgetId]: data }));
+                return data;
+            } else {
+                // Not found. Attempt cloning.
+                // Expected monthStr format: YYYY-MM
+                const [year, month] = monthStr.split('-');
+                let prevDate = new Date(year, parseInt(month) - 1 - 1, 1); // -1 for 0 index, -1 for previous month
+                if (isNaN(prevDate)) return null;
+
+                const prevYYYY = prevDate.getFullYear();
+                const prevMM = String(prevDate.getMonth() + 1).padStart(2, '0');
+                const prevMonthStr = `${prevYYYY}-${prevMM}`;
+                const prevBudgetId = `${prevMonthStr}_${context}`;
+
+                const prevBudgetRef = doc(db, 'finance_budgets', prevBudgetId);
+                const prevBudgetSnap = await getDoc(prevBudgetRef);
+
+                if (prevBudgetSnap.exists()) {
+                    const clonedData = prevBudgetSnap.data();
+
+                    // Save the cloned data directly as the new month's config
+                    await setDoc(budgetRef, clonedData);
+                    setBudgets(prev => ({ ...prev, [budgetId]: clonedData }));
+                    return clonedData;
+                }
+
+                // If previous doesn't exist either, return empty setup
+                return null;
+            }
+        } catch (error) {
+            console.error("Error in fetchBudgetConfig: ", error);
+            return null;
+        }
+    };
+
+    const saveBudgetConfig = async (monthStr, context, newCategories) => {
+        try {
+            const budgetId = `${monthStr}_${context}`;
+            const budgetRef = doc(db, 'finance_budgets', budgetId);
+            const dataToSave = {
+                month: monthStr,
+                context: context,
+                categories: newCategories,
+                updatedAt: Timestamp.now()
+            };
+
+            await setDoc(budgetRef, dataToSave);
+            setBudgets(prev => ({ ...prev, [budgetId]: dataToSave }));
+        } catch (error) {
+            console.error("Error saving budget config: ", error);
+            throw error;
+        }
+    };
+
+
     const value = {
         transactions,
+        budgets,
+        goals,
         loading,
         addTransaction,
         deleteTransaction,
         updateTransaction,
         getTotals,
         appConfig,
-        updateAppConfig
+        updateAppConfig,
+        addGoal,
+        updateGoal,
+        deleteGoal,
+        fetchBudgetConfig,
+        saveBudgetConfig
     };
 
     return (
