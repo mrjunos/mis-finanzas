@@ -41,14 +41,6 @@ export default function Sidebar({ activeView, onNavigate, isOpen, setIsOpen }) {
                         onClick={() => { onNavigate && onNavigate('dashboard'); setIsOpen && setIsOpen(false); }}
                     />
                     <SidebarItem
-                        icon="account_balance_wallet"
-                        title="Billetera"
-                    />
-                    <SidebarItem
-                        icon="pie_chart"
-                        title="Reportes"
-                    />
-                    <SidebarItem
                         icon="receipt_long"
                         title="Transacciones"
                         active={activeView === 'transactions'}
