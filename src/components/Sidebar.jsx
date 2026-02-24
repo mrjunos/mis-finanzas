@@ -41,6 +41,12 @@ export default function Sidebar({ activeView, onNavigate, isOpen, setIsOpen }) {
                         onClick={() => { onNavigate && onNavigate('dashboard'); setIsOpen && setIsOpen(false); }}
                     />
                     <SidebarItem
+                        icon="insights"
+                        title="Insights"
+                        active={activeView === 'insights'}
+                        onClick={() => { onNavigate && onNavigate('insights'); setIsOpen && setIsOpen(false); }}
+                    />
+                    <SidebarItem
                         icon="receipt_long"
                         title="Transacciones"
                         active={activeView === 'transactions'}

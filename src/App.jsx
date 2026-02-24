@@ -9,6 +9,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Transactions from './components/Transactions';
 import Presupuestos from './components/Presupuestos';
+import Insights from './components/Insights';
+
 function AppContent() {
   const { currentUser } = useAuth();
   const [context, setContext] = useState('unified'); // 'personal', 'unified', 'business'
@@ -34,6 +36,8 @@ function AppContent() {
             <main className="flex-1 flex overflow-hidden">
               {currentView === 'dashboard' ? (
                 <Dashboard currentContext={context} onNavigate={setCurrentView} />
+              ) : currentView === 'insights' ? (
+                <Insights currentContext={context} />
               ) : currentView === 'settings' ? (
                 <Settings />
               ) : currentView === 'transactions' ? (
