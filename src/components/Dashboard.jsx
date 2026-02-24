@@ -12,7 +12,7 @@ const formatCurrency = (value) => {
     }).format(value);
 };
 
-export default function Dashboard({ currentContext }) {
+export default function Dashboard({ currentContext, onNavigate }) {
     const { getTotals, deleteTransaction, loading } = useFinance();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -157,7 +157,12 @@ export default function Dashboard({ currentContext }) {
                                 <span className="material-symbols-outlined text-slate-400 text-lg">history</span>
                                 <h3 className="font-bold text-slate-700 text-sm">Actividad Reciente</h3>
                             </div>
-                            <button className="text-[10px] font-bold text-primary-dark hover:underline uppercase tracking-wider">Ver Todo</button>
+                            <button
+                                onClick={() => onNavigate && onNavigate('transactions')}
+                                className="text-[10px] font-bold text-primary-dark hover:underline uppercase tracking-wider"
+                            >
+                                Ver Todo
+                            </button>
                         </div>
                         <div className="space-y-1">
                             {filteredTransactions.length === 0 ? (

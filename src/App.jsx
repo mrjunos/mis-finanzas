@@ -7,10 +7,12 @@ import Login from './components/Login';
 import { FinanceProvider } from './context/FinanceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
+import Transactions from './components/Transactions';
+
 function AppContent() {
   const { currentUser } = useAuth();
   const [context, setContext] = useState('unified'); // 'personal', 'unified', 'business'
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'settings'
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'settings', 'transactions'
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (!currentUser) {
@@ -31,10 +33,12 @@ function AppContent() {
 
             <main className="flex-1 flex overflow-hidden">
               {currentView === 'dashboard' ? (
-                <Dashboard currentContext={context} />
-              ) : (
+                <Dashboard currentContext={context} onNavigate={setCurrentView} />
+              ) : currentView === 'settings' ? (
                 <Settings />
-              )}
+              ) : currentView === 'transactions' ? (
+                <Transactions currentContext={context} />
+              ) : null}
             </main>
           </div>
         </div>
