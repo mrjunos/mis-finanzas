@@ -12,11 +12,10 @@ const DEFAULT_CONFIG = {
     currencies: ['COP', 'USD', 'EUR'],
     accounts: ['Efectivo', 'Tarjeta de Crédito Principal', 'Cuenta Bancaria'],
     categories: [
-        { name: 'Comida', subcategories: [] },
-        { name: 'Transporte', subcategories: [] },
-        { name: 'Servicios', subcategories: [] },
-        { name: 'Compras', subcategories: [] },
-        { name: 'Ingresos', subcategories: [] }
+        { name: 'Comida', subcategories: [], icon: 'restaurant', type: 'debit', context: 'personal' },
+        { name: 'Transporte', subcategories: [], icon: 'directions_car', type: 'debit', context: 'personal' },
+        { name: 'Servicios', subcategories: [], icon: 'bolt', type: 'debit', context: 'personal' },
+        { name: 'Ingresos', subcategories: [], icon: 'payments', type: 'credit', context: 'personal' }
     ]
 };
 
@@ -38,13 +37,43 @@ export const FinanceProvider = ({ children }) => {
 
                 if (configSnap.exists()) {
                     const data = configSnap.data();
-                    // Migration: Check if categories are strings, if so convert to objects
-                    if (data.categories && data.categories.length > 0 && typeof data.categories[0] === 'string') {
-                        const newCategories = data.categories.map(cat => ({ name: cat, subcategories: [] }));
-                        const migratedConfig = { ...data, categories: newCategories };
+                    let needsMigration = false;
+                    let migratedCategories = data.categories || [];
+
+                    // Migration: Check if categories need migration
+                    if (migratedCategories.length > 0) {
+                        migratedCategories = migratedCategories.map(cat => {
+                            if (typeof cat === 'string') {
+                                needsMigration = true;
+                                const isIncome = cat.toLowerCase().includes('ingreso');
+                                return {
+                                    name: cat,
+                                    subcategories: [],
+                                    icon: 'category',
+                                    type: isIncome ? 'credit' : 'debit',
+                                    context: 'personal'
+                                };
+                            } else if (typeof cat === 'object') {
+                                // Check if any fields are missing
+                                let updatedCat = { ...cat };
+                                if (!updatedCat.icon || !updatedCat.type || !updatedCat.context) {
+                                    needsMigration = true;
+                                    const isIncome = (updatedCat.name || '').toLowerCase().includes('ingreso');
+                                    updatedCat.icon = updatedCat.icon || 'category';
+                                    updatedCat.type = updatedCat.type || (isIncome ? 'credit' : 'debit');
+                                    updatedCat.context = updatedCat.context || 'personal';
+                                }
+                                return updatedCat;
+                            }
+                            return cat;
+                        });
+                    }
+
+                    if (needsMigration) {
+                        const migratedConfig = { ...data, categories: migratedCategories };
                         setAppConfig(migratedConfig);
                         // Update Firestore immediately to migrate persistence
-                        await updateDoc(configRef, { categories: newCategories });
+                        await updateDoc(configRef, { categories: migratedCategories });
                     } else {
                         setAppConfig(data);
                     }

@@ -35,14 +35,8 @@ export default function Sidebar({ activeView, onNavigate, isOpen, setIsOpen }) {
             `}>
                 <div className="flex-1 flex flex-col gap-4 w-full items-center">
                     <SidebarItem
-                        icon="dashboard"
-                        title="Dashboard"
-                        active={activeView === 'dashboard'}
-                        onClick={() => { onNavigate && onNavigate('dashboard'); setIsOpen && setIsOpen(false); }}
-                    />
-                    <SidebarItem
                         icon="insights"
-                        title="Insights"
+                        title="Radiografía Financiera"
                         active={activeView === 'insights'}
                         onClick={() => { onNavigate && onNavigate('insights'); setIsOpen && setIsOpen(false); }}
                     />

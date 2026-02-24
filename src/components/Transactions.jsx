@@ -35,9 +35,34 @@ export default function Transactions({ currentContext }) {
     const [startDate, setStartDate] = useState(() => format(startOfMonth(new Date()), 'yyyy-MM-dd'));
     const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
 
+    // New Filters
+    const [categoryFilter, setCategoryFilter] = useState('');
+    const [subcategoryFilter, setSubcategoryFilter] = useState('');
+    const [accountFilter, setAccountFilter] = useState('');
+    const [minAmountFilter, setMinAmountFilter] = useState('');
+    const [maxAmountFilter, setMaxAmountFilter] = useState('');
+
     // Pagination
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
+
+    // Extract unique options for selects
+    const uniqueCategories = useMemo(() => {
+        const cats = new Set(filteredTransactions.map(t => t.category || 'General'));
+        return Array.from(cats).sort();
+    }, [filteredTransactions]);
+
+    const uniqueSubcategories = useMemo(() => {
+        // Only show subcategories related to selected category if one is selected
+        const relevantTxs = categoryFilter ? filteredTransactions.filter(t => (t.category || 'General') === categoryFilter) : filteredTransactions;
+        const subCats = new Set(relevantTxs.filter(t => t.subcategory).map(t => t.subcategory));
+        return Array.from(subCats).sort();
+    }, [filteredTransactions, categoryFilter]);
+
+    const uniqueAccounts = useMemo(() => {
+        const accounts = new Set(filteredTransactions.map(t => t.card || t.account || 'Efectivo'));
+        return Array.from(accounts).sort();
+    }, [filteredTransactions]);
 
     // Apply filters
     const processedTransactions = useMemo(() => {
@@ -52,11 +77,39 @@ export default function Transactions({ currentContext }) {
             return isWithinInterval(txDate, { start, end });
         });
 
+        // Category filter
+        if (categoryFilter) {
+            filtered = filtered.filter(t => (t.category || 'General') === categoryFilter);
+        }
+
+        // Subcategory filter
+        if (subcategoryFilter) {
+            filtered = filtered.filter(t => t.subcategory === subcategoryFilter);
+        }
+
+        // Account filter
+        if (accountFilter) {
+            filtered = filtered.filter(t => (t.card || t.account || 'Efectivo') === accountFilter);
+        }
+
+        // Amount filters
+        if (minAmountFilter !== '') {
+            filtered = filtered.filter(t => t.amount >= Number(minAmountFilter));
+        }
+        if (maxAmountFilter !== '') {
+            filtered = filtered.filter(t => t.amount <= Number(maxAmountFilter));
+        }
+
         // Ensure sorted by date desc
         filtered.sort((a, b) => b.date.getTime() - a.date.getTime());
 
         return filtered;
-    }, [filteredTransactions, startDate, endDate]);
+    }, [filteredTransactions, startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter]);
+
+    // Reset pagination when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter, pageSize]);
 
     // Pagination slice
     const paginatedTransactions = useMemo(() => {
@@ -170,7 +223,7 @@ export default function Transactions({ currentContext }) {
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 overflow-y-auto w-full relative">
-            <div className="max-w-7xl mx-auto w-full flex flex-col gap-8 pb-12">
+            <div className="max-w-[1600px] mx-auto w-full flex flex-col gap-8 pb-12">
                 {/* Header & Controls */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
@@ -182,26 +235,116 @@ export default function Transactions({ currentContext }) {
                         </p>
                     </div>
 
-                    {/* Filters */}
-                    <div className="flex flex-wrap items-center gap-4 bg-white/60 p-3 rounded-2xl border border-white/50 backdrop-blur-md shadow-sm">
-                        <div className="flex flex-col">
-                            <label className="text-xs text-slate-500 font-medium ml-1">Desde</label>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="bg-transparent border-0 text-sm font-medium focus:ring-0 active:ring-0 p-1 text-slate-700 outline-none cursor-pointer"
-                            />
-                        </div>
-                        <div className="h-8 w-px bg-slate-200"></div>
-                        <div className="flex flex-col">
-                            <label className="text-xs text-slate-500 font-medium ml-1">Hasta</label>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="bg-transparent border-0 text-sm font-medium focus:ring-0 active:ring-0 p-1 text-slate-700 outline-none cursor-pointer"
-                            />
+                    {/* Advanced Filters */}
+                    <div className="bg-white/60 p-4 rounded-2xl border border-white/50 backdrop-blur-md shadow-sm">
+                        <div className="flex flex-wrap items-end gap-4">
+                            {/* Date Group */}
+                            <div className="flex flex-col gap-1 border-r border-slate-200 pr-4">
+                                <label className="text-xs text-slate-500 font-bold uppercase tracking-wider">Fechas</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="date"
+                                        title="Desde"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none cursor-pointer"
+                                    />
+                                    <span className="text-slate-400 font-medium">-</span>
+                                    <input
+                                        type="date"
+                                        title="Hasta"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Attribs Group */}
+                            <div className="flex flex-wrap items-end gap-3 flex-1">
+                                <div className="flex flex-col min-w-[140px] flex-1 max-w-[200px]">
+                                    <label className="text-[10px] text-slate-500 font-bold uppercase mb-1">Categoría</label>
+                                    <select
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none"
+                                        value={categoryFilter}
+                                        onChange={(e) => {
+                                            setCategoryFilter(e.target.value);
+                                            setSubcategoryFilter(''); // Reset subcat when cat changes
+                                        }}
+                                    >
+                                        <option value="">Todas</option>
+                                        {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="flex flex-col min-w-[140px] flex-1 max-w-[200px]">
+                                    <label className="text-[10px] text-slate-500 font-bold uppercase mb-1">Subcategoría</label>
+                                    <select
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none"
+                                        value={subcategoryFilter}
+                                        onChange={(e) => setSubcategoryFilter(e.target.value)}
+                                    >
+                                        <option value="">Todas</option>
+                                        {uniqueSubcategories.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="flex flex-col min-w-[140px] flex-1 max-w-[200px]">
+                                    <label className="text-[10px] text-slate-500 font-bold uppercase mb-1">Cuenta</label>
+                                    <select
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none"
+                                        value={accountFilter}
+                                        onChange={(e) => setAccountFilter(e.target.value)}
+                                    >
+                                        <option value="">Todas</option>
+                                        {uniqueAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Amounts Group */}
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div className="flex flex-col w-24">
+                                    <label className="text-[10px] text-slate-500 font-bold uppercase mb-1">Monto Mín.</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0"
+                                        value={minAmountFilter}
+                                        onChange={(e) => setMinAmountFilter(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none w-full"
+                                    />
+                                </div>
+                                <div className="flex flex-col w-24">
+                                    <label className="text-[10px] text-slate-500 font-bold uppercase mb-1">Monto Máx.</label>
+                                    <input
+                                        type="number"
+                                        placeholder="∞"
+                                        value={maxAmountFilter}
+                                        onChange={(e) => setMaxAmountFilter(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary p-2 text-slate-700 outline-none w-full"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Clear Filters Button */}
+                            <div className="flex items-center pb-0.5">
+                                <button
+                                    onClick={() => {
+                                        setStartDate(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+                                        setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                                        setCategoryFilter('');
+                                        setSubcategoryFilter('');
+                                        setAccountFilter('');
+                                        setMinAmountFilter('');
+                                        setMaxAmountFilter('');
+                                    }}
+                                    className="px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-800 rounded-lg transition-colors flex items-center gap-1 h-[38px]"
+                                    title="Limpiar todos los filtros"
+                                >
+                                    <span className="material-symbols-outlined text-sm">filter_list_off</span>
+                                    <span className="hidden sm:inline">Limpiar</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -268,9 +411,16 @@ export default function Transactions({ currentContext }) {
                                                 {tx.comments && <div className="text-[10px] text-slate-400 mt-1">{tx.comments}</div>}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                                                    {tx.category || 'General'}
-                                                </span>
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                                                        {tx.category || 'General'}
+                                                    </span>
+                                                    {tx.subcategory && (
+                                                        <span className="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                                                            {tx.subcategory}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-600">
                                                 {tx.card || tx.account || 'Efectivo'}
@@ -283,7 +433,14 @@ export default function Transactions({ currentContext }) {
                                                 )}
                                             </td>
                                             <td className={`px-6 py-4 text-sm font-semibold text-right ${tx.type === 'credit' ? 'text-emerald-500' : 'text-slate-800'}`}>
-                                                {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount || 0, tx.currency || 'USD')}
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <span>
+                                                        {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount || 0, tx.currency || 'USD')}
+                                                    </span>
+                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${tx.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {tx.currency || 'USD'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <button
