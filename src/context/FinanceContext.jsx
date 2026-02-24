@@ -58,11 +58,23 @@ export const FinanceProvider = ({ children }) => {
 
         // Subscribe to transactions collection
         const unsubscribeTransactions = onSnapshot(collection(db, 'finance_transactions'), (snapshot) => {
-            const txs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                date: doc.data().date?.toDate() || new Date() // Ensure date is a Date object
-            }));
+            const txs = snapshot.docs.map(doc => {
+                const data = doc.data();
+                let date;
+                if (data.date && typeof data.date.toDate === 'function') {
+                    date = data.date.toDate();
+                } else if (data.date) {
+                    date = new Date(data.date);
+                } else {
+                    date = new Date();
+                }
+
+                return {
+                    id: doc.id,
+                    ...data,
+                    date: date // Ensure date is a Date object
+                };
+            });
             // Sort by date descending
             txs.sort((a, b) => b.date.getTime() - a.date.getTime());
             setTransactions(txs);
