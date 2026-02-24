@@ -1,0 +1,279 @@
+import React, { useState } from 'react';
+import { PieChart, Wallet, Briefcase, Plus, AlertCircle, TrendingUp, ChevronLeft, ChevronRight, Target } from 'lucide-react';
+
+const Presupuestos = () => {
+  const [contexto, setContexto] = useState('Personal');
+  const [mesActual, setMesActual] = useState('Marzo 2026');
+
+  // Datos simulados para cada contexto
+  const datos = {
+    Personal: {
+      total: 3500000,
+      gastado: 2800000,
+      categorias: [
+        { nombre: 'Vivienda', gastado: 1500000, limite: 1500000, color: 'bg-teal-400' },
+        { nombre: 'Comida & Rappi', gastado: 800000, limite: 1000000, color: 'bg-teal-400' },
+        { nombre: 'Transporte', gastado: 350000, limite: 300000, color: 'bg-red-400' },
+        { nombre: 'Ocio con Dahia', gastado: 150000, limite: 700000, color: 'bg-teal-400' },
+      ],
+      metas: [
+        { nombre: 'Viaje a Japón con Dahia', ahorrado: 4500000, objetivo: 15000000 },
+        { nombre: 'Fondo de Emergencia', ahorrado: 8000000, objetivo: 10000000 }
+      ]
+    },
+    Negocio: {
+      total: 8000000,
+      gastado: 3200000,
+      categorias: [
+        { nombre: 'Nómina', gastado: 2000000, limite: 5000000, color: 'bg-teal-400' },
+        { nombre: 'SaaS & Servidores', gastado: 450000, limite: 500000, color: 'bg-teal-400' },
+        { nombre: 'Marketing Ads', gastado: 750000, limite: 2500000, color: 'bg-teal-400' },
+      ],
+      metas: [
+        { nombre: 'Renovación de Equipos', ahorrado: 1500000, objetivo: 6000000 }
+      ]
+    }
+  };
+
+  const formatearDinero = (monto) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(monto);
+  };
+
+  const calcularPorcentaje = (gastado, limite) => {
+    const porcentaje = (gastado / limite) * 100;
+    return porcentaje > 100 ? 100 : porcentaje;
+  };
+
+  const renderResumenGeneral = () => {
+    const saludPersonal = (datos.Personal.gastado / datos.Personal.total) * 100;
+    const saludNegocio = (datos.Negocio.gastado / datos.Negocio.total) * 100;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        {/* Tarjeta de Salud Personal */}
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-teal-300 to-teal-500"></div>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Salud Presupuesto Personal</p>
+              <h2 className="text-3xl font-bold text-gray-800">{saludPersonal.toFixed(1)}%</h2>
+              <p className="text-sm text-gray-500 mt-1">Consumido este mes</p>
+            </div>
+            <div className="p-3 bg-teal-50 rounded-2xl text-teal-500">
+              <Wallet size={24} />
+            </div>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
+            <div 
+              className={`h-2 rounded-full ${saludPersonal > 90 ? 'bg-red-400' : 'bg-teal-400'}`} 
+              style={{ width: `${saludPersonal}%` }}
+            ></div>
+          </div>
+        </div>
+
+        {/* Tarjeta de Salud Negocio */}
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-300 to-blue-500"></div>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Salud Presupuesto Negocio</p>
+              <h2 className="text-3xl font-bold text-gray-800">{saludNegocio.toFixed(1)}%</h2>
+              <p className="text-sm text-gray-500 mt-1">Consumido este mes</p>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-2xl text-blue-500">
+              <Briefcase size={24} />
+            </div>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
+            <div 
+              className={`h-2 rounded-full ${saludNegocio > 90 ? 'bg-red-400' : 'bg-blue-400'}`} 
+              style={{ width: `${saludNegocio}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        <div className="col-span-1 md:col-span-2 bg-gray-50 rounded-[2rem] p-6 text-center border border-gray-100">
+           <AlertCircle className="mx-auto text-gray-400 mb-2" size={32} />
+           <p className="text-gray-600 font-medium">El contexto General no mezcla presupuestos.</p>
+           <p className="text-gray-400 text-sm mt-1">Selecciona 'Personal' o 'Negocio' arriba para gestionar las categorías individuales.</p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderContextoEspecifico = () => {
+    const data = datos[contexto];
+    const disponible = data.total - data.gastado;
+    const porcentajeGlobal = (data.gastado / data.total) * 100;
+
+    return (
+      <div className="mt-6 space-y-6">
+        {/* Métricas Top */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Presupuestado</p>
+            <h2 className="text-2xl font-bold text-gray-800">{formatearDinero(data.total)}</h2>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Gastado</p>
+            <h2 className="text-2xl font-bold text-gray-800">{formatearDinero(data.gastado)}</h2>
+            <div className="w-full bg-gray-100 rounded-full h-1 mt-3">
+              <div className="bg-teal-400 h-1 rounded-full" style={{ width: `${porcentajeGlobal}%` }}></div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Disponible</p>
+            <h2 className={`text-2xl font-bold ${disponible < 0 ? 'text-red-500' : 'text-teal-500'}`}>
+              {formatearDinero(disponible)}
+            </h2>
+          </div>
+        </div>
+
+        {/* Lista de Categorías */}
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-50">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <PieChart size={20} className="text-teal-400" />
+              Categorías
+            </h3>
+            <button className="flex items-center gap-1 text-sm font-semibold text-teal-500 hover:text-teal-600 bg-teal-50 px-4 py-2 rounded-xl transition-colors">
+              <Plus size={16} /> Agregar
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {data.categorias.map((cat, index) => {
+              const porcentaje = calcularPorcentaje(cat.gastado, cat.limite);
+              const excedido = cat.gastado > cat.limite;
+              
+              return (
+                <div key={index} className="group">
+                  <div className="flex justify-between items-end mb-2">
+                    <div>
+                      <h4 className="font-semibold text-gray-800">{cat.nombre}</h4>
+                      <p className="text-xs text-gray-400 mt-0.5">{formatearDinero(cat.gastado)} de {formatearDinero(cat.limite)}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold ${excedido ? 'text-red-500' : 'text-gray-600'}`}>
+                        {porcentaje.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${excedido ? 'bg-red-400' : 'bg-teal-400'}`} 
+                      style={{ width: `${porcentaje}%` }}
+                    ></div>
+                  </div>
+                  {excedido && (
+                    <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                      <AlertCircle size={12} /> Te pasaste por {formatearDinero(cat.gastado - cat.limite)}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Lista de Metas de Ahorro */}
+        {data.metas && data.metas.length > 0 && (
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-50">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Target size={20} className="text-purple-500" />
+                Metas de Ahorro
+              </h3>
+              <button className="flex items-center gap-1 text-sm font-semibold text-purple-500 hover:text-purple-600 bg-purple-50 px-4 py-2 rounded-xl transition-colors">
+                <Plus size={16} /> Nueva Meta
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {data.metas.map((meta, index) => {
+                const progreso = calcularPorcentaje(meta.ahorrado, meta.objetivo);
+                
+                return (
+                  <div key={index} className="group">
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <h4 className="font-semibold text-gray-800">{meta.nombre}</h4>
+                        <p className="text-xs text-gray-400 mt-0.5">{formatearDinero(meta.ahorrado)} de {formatearDinero(meta.objetivo)}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-purple-600">
+                          {progreso.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-500 bg-purple-400" 
+                        style={{ width: `${progreso}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans">
+      <div className="max-w-5xl mx-auto">
+        
+        {/* Header imitando tu diseño */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center text-teal-600 font-bold">
+                MF
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-800">Presupuestos</h1>
+              </div>
+            </div>
+            
+            {/* Selector de Mes */}
+            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl shadow-sm border border-gray-100">
+              <button className="text-gray-400 hover:text-teal-500 transition-colors p-1"><ChevronLeft size={18} /></button>
+              <span className="text-sm font-bold text-gray-700 w-24 text-center uppercase tracking-wider">{mesActual}</span>
+              <button className="text-gray-400 hover:text-teal-500 transition-colors p-1"><ChevronRight size={18} /></button>
+            </div>
+          </div>
+
+          {/* Selector de Contexto */}
+          <div className="flex bg-white rounded-full p-1 shadow-sm border border-gray-100">
+            {['Personal', 'General', 'Negocio'].map((ctx) => (
+              <button
+                key={ctx}
+                onClick={() => setContexto(ctx)}
+                className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  contexto === ctx 
+                    ? 'bg-teal-300 text-teal-900 shadow-sm' 
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {ctx}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contenido Dinámico */}
+        {contexto === 'General' ? renderResumenGeneral() : renderContextoEspecifico()}
+
+      </div>
+    </div>
+  );
+};
+
+export default Presupuestos;

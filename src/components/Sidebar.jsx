@@ -54,6 +54,12 @@ export default function Sidebar({ activeView, onNavigate, isOpen, setIsOpen }) {
                         active={activeView === 'transactions'}
                         onClick={() => { onNavigate && onNavigate('transactions'); setIsOpen && setIsOpen(false); }}
                     />
+                    <SidebarItem
+                        icon="savings"
+                        title="Presupuestos"
+                        active={activeView === 'presupuestos'}
+                        onClick={() => { onNavigate && onNavigate('presupuestos'); setIsOpen && setIsOpen(false); }}
+                    />
                     <div className="w-8 h-px bg-slate-200 mx-auto my-2"></div>
                     <SidebarItem
                         icon="settings"
