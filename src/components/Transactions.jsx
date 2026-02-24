@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { format, startOfMonth, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { formatCurrency, formatCompactNumber } from '../utils/format';
 import TransactionModal from './TransactionModal';
 import {
     LineChart,
@@ -130,7 +131,7 @@ export default function Transactions({ currentContext }) {
                                 fontSize={12}
                                 axisLine={false}
                                 tickLine={false}
-                                tickFormatter={(val) => new Intl.NumberFormat('es-CO', { notation: 'compact' }).format(val)}
+                                tickFormatter={(val) => formatCompactNumber(val)}
                             />
                         ))}
 
@@ -139,7 +140,7 @@ export default function Transactions({ currentContext }) {
                             formatter={(value, name) => {
                                 const curr = name.replace('Balance ', '');
                                 try {
-                                    return [new Intl.NumberFormat('es-CO', { style: 'currency', currency: curr }).format(value), name];
+                                    return [formatCurrency(value, curr), name];
                                 } catch (e) {
                                     return [`$${value}`, name];
                                 }
@@ -165,15 +166,6 @@ export default function Transactions({ currentContext }) {
                 </ResponsiveContainer>
             </div>
         );
-    };
-
-    const formatCurrency = (value, currencyOpt) => {
-        const curr = currencyOpt || 'USD';
-        return new Intl.NumberFormat('es-CO', {
-            style: 'currency',
-            currency: curr,
-            minimumFractionDigits: curr === 'COP' ? 0 : 2
-        }).format(value);
     };
 
     return (
