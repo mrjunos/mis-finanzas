@@ -379,7 +379,7 @@ export default function Presupuestos({ currentContext }) {
 
     return (
         <div className="flex-1 overflow-y-auto p-6 lg:p-8">
-            <div className="max-w-[1000px] mx-auto">
+            <div className="max-w-[1600px] mx-auto w-full">
 
                 {/* Encabezado del Mes */}
                 <div className="flex justify-between items-center mb-6">

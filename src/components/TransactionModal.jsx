@@ -6,17 +6,25 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     const { addTransaction, updateTransaction, addTransfer, appConfig } = useFinance();
 
     // Helper to normalize categories access
-    const categories = useMemo(() => {
+    const allCategories = useMemo(() => {
         if (!appConfig?.categories) return [];
-        return appConfig.categories.map(c => typeof c === 'string' ? { name: c, subcategories: [] } : c);
+        return appConfig.categories.map(c => {
+            if (typeof c === 'string') {
+                const isIncome = c.toLowerCase().includes('ingreso');
+                return { name: c, subcategories: [], type: isIncome ? 'credit' : 'debit', context: 'personal' };
+            }
+            return c;
+        });
     }, [appConfig]);
+
+    const mode = editingTransaction ? 'transaction' : initialMode;
 
     const [formData, setFormData] = useState({
         title: '',
         amount: '',
         type: 'debit',
         context: 'personal',
-        category: categories?.[0]?.name || 'general',
+        category: allCategories?.[0]?.name || 'general',
         subcategory: '',
         currency: appConfig?.currencies?.[0] || 'USD',
         card: appConfig?.accounts?.[0] || '',
@@ -26,7 +34,23 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
         destinationCard: appConfig?.accounts?.[0] || ''
     });
 
-    const mode = editingTransaction ? 'transaction' : initialMode;
+    const filteredCategories = useMemo(() => {
+        if (mode === 'transfer') return [];
+        return allCategories.filter(c => {
+            const cType = c.type || 'debit';
+            const cContext = c.context || 'personal';
+            return cType === formData.type && (cContext === formData.context || cContext === 'both');
+        });
+    }, [allCategories, formData.type, formData.context, mode]);
+
+    React.useEffect(() => {
+        if (mode === 'transaction' && isOpen && filteredCategories.length > 0) {
+            const isValid = filteredCategories.some(c => c.name === formData.category);
+            if (!isValid) {
+                setFormData(prev => ({ ...prev, category: filteredCategories[0].name, subcategory: '' }));
+            }
+        }
+    }, [formData.type, formData.context, filteredCategories, mode, isOpen]);
 
     React.useEffect(() => {
         if (editingTransaction) {
@@ -46,7 +70,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 context: editingTransaction.context || 'personal',
                 category: (typeof editingTransaction.category === 'object'
                     ? editingTransaction.category?.name
-                    : editingTransaction.category) || categories?.[0]?.name || 'general',
+                    : editingTransaction.category) || allCategories?.[0]?.name || 'general',
                 subcategory: editingTransaction.subcategory || '',
                 currency: editingTransaction.currency || appConfig?.currencies?.[0] || 'USD',
                 card: editingTransaction.card || appConfig?.accounts?.[0] || '',
@@ -61,7 +85,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 amount: '',
                 type: 'debit',
                 context: 'personal',
-                category: categories?.[0]?.name || 'general',
+                category: allCategories?.[0]?.name || 'general',
                 subcategory: '',
                 currency: appConfig?.currencies?.[0] || 'USD',
                 card: appConfig?.accounts?.[0] || '',
@@ -71,13 +95,13 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 destinationCard: appConfig?.accounts?.[0] || ''
             });
         }
-    }, [editingTransaction, appConfig, categories, mode, isOpen]);
+    }, [editingTransaction, appConfig, allCategories, mode, isOpen]);
 
     // Get subcategories for currently selected category
     const currentSubcategories = useMemo(() => {
-        const cat = categories.find(c => c.name === formData.category);
+        const cat = filteredCategories.find(c => c.name === formData.category);
         return cat ? cat.subcategories : [];
-    }, [categories, formData.category]);
+    }, [filteredCategories, formData.category]);
 
     if (!isOpen) return null;
 
@@ -187,7 +211,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cantidad</label>
                             <div className="flex">
                                 <select
-                                    className="px-3 py-2 bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-bold"
+                                    className="custom-select px-3 py-2 bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-bold"
                                     value={formData.currency}
                                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                                 >
@@ -211,7 +235,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
                                 <select
-                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                 >
@@ -228,7 +252,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                             </label>
                             <select
                                 required
-                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 value={formData.card}
                                 onChange={(e) => setFormData({ ...formData, card: e.target.value })}
                             >
@@ -247,7 +271,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                 </label>
                                 <select
                                     required
-                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                     value={formData.destinationCard}
                                     onChange={(e) => setFormData({ ...formData, destinationCard: e.target.value })}
                                 >
@@ -274,7 +298,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                 {mode === 'transfer' ? 'Contexto Origen' : 'Contexto'}
                             </label>
                             <select
-                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 value={formData.context}
                                 onChange={(e) => setFormData({ ...formData, context: e.target.value })}
                             >
@@ -288,7 +312,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Contexto Destino</label>
                                 <select
-                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                     value={formData.destinationContext}
                                     onChange={(e) => setFormData({ ...formData, destinationContext: e.target.value })}
                                 >
@@ -303,7 +327,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
                                     <select
-                                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         value={formData.category}
                                         onChange={(e) => {
                                             setFormData({
@@ -313,7 +337,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                             });
                                         }}
                                     >
-                                        {categories.map(cat => (
+                                        {filteredCategories.map(cat => (
                                             <option key={cat.name} value={cat.name}>{cat.name}</option>
                                         ))}
                                     </select>
@@ -324,7 +348,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subcategoría</label>
                                         <select
-                                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                            className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                                             value={formData.subcategory}
                                             onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                                         >
