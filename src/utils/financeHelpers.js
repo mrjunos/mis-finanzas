@@ -27,6 +27,12 @@ export const parseTransactionDate = (dateField) => {
         return dateField.toDate();
     }
     if (dateField) {
+        // If the date is just a string 'YYYY-MM-DD', parse it safely at noon to avoid timezone shifts
+        if (typeof dateField === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
+            const [year, month, day] = dateField.split('-');
+            return new Date(year, month - 1, day, 12, 0, 0);
+        }
+
         const parsed = new Date(dateField);
         // Guard against Invalid Date
         if (!isNaN(parsed.getTime())) {
@@ -48,6 +54,9 @@ export const calculateBalances = (transactions) => {
     const businessCashFlow = {};
 
     transactions.forEach((t) => {
+        // Skip transfers — they move money between accounts, not in/out
+        if (t.type === 'transfer' || t.isTransfer === true) return;
+
         const amount = t.type === 'credit' ? Number(t.amount) : -Number(t.amount);
         const currency = t.currency || 'USD';
 

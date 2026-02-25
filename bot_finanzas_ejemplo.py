@@ -105,16 +105,14 @@ def registrar_transaccion(args):
             # Intenta parsear formato YYYY-MM-DD o DD/MM/YYYY
             input_date = args.date
             if '/' in input_date:
-                tx_datetime = datetime.strptime(input_date, "%d/%m/%Y")
+                tx_date = datetime.strptime(input_date, "%d/%m/%Y").strftime("%Y-%m-%d")
             else:
-                tx_datetime = datetime.strptime(input_date, "%Y-%m-%d")
-            # Configurar como UTC para Firebase
-            tx_date = tx_datetime
+                tx_date = datetime.strptime(input_date, "%Y-%m-%d").strftime("%Y-%m-%d")
         except Exception as e:
             print(f"⚠️ Error parseando fecha '{args.date}', usando hoy. (Formatos: YYYY-MM-DD o DD/MM/YYYY)")
-            tx_date = firestore.SERVER_TIMESTAMP
+            tx_date = datetime.now().strftime("%Y-%m-%d")
     else:
-        tx_date = firestore.SERVER_TIMESTAMP
+        tx_date = datetime.now().strftime("%Y-%m-%d")
 
     nueva_transaccion = {
         "type": getattr(args, 'type', 'debit'),

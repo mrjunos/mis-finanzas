@@ -4,6 +4,7 @@ import { format, startOfMonth, isWithinInterval, endOfDay, startOfDay } from 'da
 import { es } from 'date-fns/locale';
 import { formatCurrency, formatCompactNumber } from '../utils/format';
 import TransactionModal from './TransactionModal';
+import ConfirmModal from './ConfirmModal';
 import {
     LineChart,
     Line,
@@ -30,6 +31,7 @@ export default function Transactions({ currentContext }) {
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
+    const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, txId: null });
 
     // Filters
     const [startDate, setStartDate] = useState(() => format(startOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -60,7 +62,11 @@ export default function Transactions({ currentContext }) {
     }, [filteredTransactions, categoryFilter]);
 
     const uniqueAccounts = useMemo(() => {
-        const accounts = new Set(filteredTransactions.map(t => t.card || t.account || 'Efectivo'));
+        const accounts = new Set();
+        filteredTransactions.forEach(t => {
+            accounts.add(t.card || t.account || 'Efectivo');
+            if (t.destinationCard) accounts.add(t.destinationCard);
+        });
         return Array.from(accounts).sort();
     }, [filteredTransactions]);
 
@@ -89,7 +95,13 @@ export default function Transactions({ currentContext }) {
 
         // Account filter
         if (accountFilter) {
-            filtered = filtered.filter(t => (t.card || t.account || 'Efectivo') === accountFilter);
+            filtered = filtered.filter(t => {
+                const card = t.card || t.account || 'Efectivo';
+                if (t.type === 'transfer' || t.isTransfer) {
+                    return card === accountFilter || t.destinationCard === accountFilter;
+                }
+                return card === accountFilter;
+            });
         }
 
         // Amount filters
@@ -423,7 +435,9 @@ export default function Transactions({ currentContext }) {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-600">
-                                                {tx.card || tx.account || 'Efectivo'}
+                                                {(tx.type === 'transfer' || tx.isTransfer)
+                                                    ? <>{tx.card || 'Efectivo'} <span className="text-indigo-400">→</span> {tx.destinationCard || '?'}</>
+                                                    : (tx.card || tx.account || 'Efectivo')}
                                             </td>
                                             <td className="px-6 py-4 text-sm">
                                                 {tx.context === 'business' ? (
@@ -432,10 +446,10 @@ export default function Transactions({ currentContext }) {
                                                     <span className="material-symbols-outlined text-blue-500 text-sm" title="Personal">person</span>
                                                 )}
                                             </td>
-                                            <td className={`px-6 py-4 text-sm font-semibold text-right ${tx.type === 'credit' ? 'text-emerald-500' : 'text-slate-800'}`}>
+                                            <td className={`px-6 py-4 text-sm font-semibold text-right ${(tx.type === 'transfer' || tx.isTransfer) ? 'text-indigo-600' : tx.type === 'credit' ? 'text-emerald-500' : 'text-slate-800'}`}>
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     <span>
-                                                        {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount || 0, tx.currency || 'USD')}
+                                                        {(tx.type === 'transfer' || tx.isTransfer) ? '' : tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount || 0, tx.currency || 'USD')}
                                                     </span>
                                                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${tx.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                                                         {tx.currency || 'USD'}
@@ -446,11 +460,9 @@ export default function Transactions({ currentContext }) {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        if (window.confirm('¿Estás seguro de eliminar esta transacción?')) {
-                                                            deleteTransaction(tx.id);
-                                                        }
+                                                        setConfirmDelete({ isOpen: true, txId: tx.id });
                                                     }}
-                                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                    className="text-slate-400 md:text-slate-300 hover:text-red-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                                     title="Eliminar transacción"
                                                 >
                                                     <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -499,6 +511,21 @@ export default function Transactions({ currentContext }) {
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }}
                 editingTransaction={editingTransaction}
+            />
+
+            <ConfirmModal
+                isOpen={confirmDelete.isOpen}
+                onClose={() => setConfirmDelete({ isOpen: false, txId: null })}
+                onConfirm={() => {
+                    if (confirmDelete.txId) {
+                        deleteTransaction(confirmDelete.txId);
+                    }
+                }}
+                title="Eliminar Transacción"
+                message="¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                isDestructive={true}
             />
         </div>
     );
