@@ -12,7 +12,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 # Firebase
-from firebase_admin import firestore
 from utils import conectar_db
 
 # Ollama
@@ -28,6 +27,7 @@ GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'credentials.json')
 TOKEN_FILE = os.path.join(os.path.dirname(__file__), 'token.json')
 PROCESSED_FILE = os.path.join(os.path.dirname(__file__), 'processed_emails.txt')
+LOCK_FILE = os.path.join(os.path.dirname(__file__), 'gmail_sync.lock')
 
 # Etiqueta por defecto a buscar
 DEFAULT_LABEL = "Bancos/PendingBot" 
@@ -188,8 +188,9 @@ Si la transacción no fue exitosa:
         print(f"\n❌ Error analizando o interpretando respuesta de IA: {e}")
         return None
 
-def registrar_transaccion(datos_ia, fallback_date):
+def registrar_transaccion(datos_ia, fallback_date, model_name="llama3"):
     """Guardar la transacción extraída por la IA en Firestore."""
+    from utils import mejorar_transaccion_con_historial
     db = conectar_db()
     
     # Manejar transacciones declinadas
@@ -197,19 +198,20 @@ def registrar_transaccion(datos_ia, fallback_date):
         print("⏭️ La IA determinó que la transacción fue fallida o declinada. Ignorando guardado.")
         return True # Devolvemos True para que de todas formas le quite la etiqueta de Gmail
 
-    # Manejar la fecha extraída por la IA, o usar la del correo
-    tx_date_str = datos_ia.get('date')
+    # Usar la fecha extraída por la IA, o el fallback (fecha de recepción del correo)
     tx_date = fallback_date
+    tx_date_str = datos_ia.get('date')
+
     if tx_date_str:
         try:
-            # Quitamos cualquier hora que la IA haya puesto por error y forzamos el mediodía
             if "T" in tx_date_str:
                 tx_date_str = tx_date_str.split("T")[0]
             elif " " in tx_date_str:
                 tx_date_str = tx_date_str.split(" ")[0]
                 
-            # Forzamos 12:00 PM para evitar problemas de timezone UTC -> Latam en Firebase
-            tx_date = datetime.datetime.strptime(tx_date_str, "%Y-%m-%d").replace(hour=12)
+            # Verificar que el formato sea correcto
+            datetime.datetime.strptime(tx_date_str, "%Y-%m-%d")
+            tx_date = tx_date_str
         except ValueError:
             pass # Si la IA devolvió algo raro, usamos el fallback_date
 
@@ -234,18 +236,15 @@ def registrar_transaccion(datos_ia, fallback_date):
 
     print("\n📦 Datos a guardar en Firebase:")
     for k, v in nueva_transaccion.items():
-        if k == "date":
-            # Si es un objeto de datetime, imprimimos un string más limpio
-            if hasattr(v, 'strftime'):
-                print(f"   {k}: {v.strftime('%Y-%m-%d %H:%M:%S')}")
-            else:
-                print(f"   {k}: {v} (Firebase Server Timestamp)")
-        else:
-            print(f"   {k}: {v}")
+        print(f"   {k}: {v}")
     
     try:
         _, doc_ref = db.collection('finance_transactions').add(nueva_transaccion)
         print(f"✅ Éxito: Registro guardado en Firebase (ID: {doc_ref.id})")
+        
+        # Mejorar título, subcategoría y contexto con IA
+        mejorar_transaccion_con_historial(db, doc_ref.id, nueva_transaccion, model_name=model_name)
+        
         return True
     except Exception as e:
         print(f"❌ Error al guardar en Firebase: {e}")
@@ -269,78 +268,99 @@ def main():
     parser.add_argument('--model', default='llama3', help="Modelo de LLM a usar (por defecto: llama3)")
     args = parser.parse_args()
 
-    label_name = args.label
-    
-    # Verificando si existe la estructura basica
-    if not os.path.exists(PROCESSED_FILE):
-        open(PROCESSED_FILE, 'w').close()
+    # --- Lock file: evitar ejecuciones simultáneas ---
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, 'r') as f:
+                old_pid = int(f.read().strip())
+            os.kill(old_pid, 0)  # Chequear si el proceso sigue vivo
+            print(f"⏳ Ya hay un proceso de sync corriendo (PID: {old_pid}). Saliendo.")
+            return
+        except (ProcessLookupError, ValueError):
+            print("⚠️ Lock huérfano encontrado (proceso anterior murió). Limpiando...")
+            os.remove(LOCK_FILE)
 
-    print("🔑 Iniciando conexión con Gmail...")
-    service = authenticate_gmail()
-    
-    print(f"🔍 Buscando el ID interno para la etiqueta '{label_name}'...")
-    label_id = get_label_id(service, label_name)
-    
-    if not label_id:
-        print(f"❌ No se encontró la etiqueta '{label_name}' en tu cuenta de Gmail.")
-        print("Asegúrate de haberla creado en la interfaz de Gmail.")
-        return
+    # Crear lock file con nuestro PID
+    with open(LOCK_FILE, 'w') as f:
+        f.write(str(os.getpid()))
 
-    print(f"✅ Etiqueta encontrada en servidor: {label_id}")
-    
-    processed_emails = load_processed_emails()
-    
-    print(f"📫 Buscando correos con la etiqueta '{label_name}'...")
-    # Búsqueda por query
-    query = f"label:{label_name}"
-    results = service.users().messages().list(userId='me', q=query).execute()
-    messages = results.get('messages', [])
-
-    if not messages:
-        print("✅ No se encontraron correos pendientes para procesar.")
-        return
+    try:
+        label_name = args.label
         
-    for msg in messages:
-        msg_id = msg['id']
+        # Verificando si existe la estructura basica
+        if not os.path.exists(PROCESSED_FILE):
+            open(PROCESSED_FILE, 'w').close()
+
+        print("🔑 Iniciando conexión con Gmail...")
+        service = authenticate_gmail()
         
-        if msg_id in processed_emails:
-            print(f"⏭️ El correo {msg_id} ya fue procesado pero sigue etiquetado. Intentando remover etiqueta y saltando...")
-            mark_as_processed(service, msg_id, label_id)
-            continue
+        print(f"🔍 Buscando el ID interno para la etiqueta '{label_name}'...")
+        label_id = get_label_id(service, label_name)
+        
+        if not label_id:
+            print(f"❌ No se encontró la etiqueta '{label_name}' en tu cuenta de Gmail.")
+            print("Asegúrate de haberla creado en la interfaz de Gmail.")
+            return
+
+        print(f"✅ Etiqueta encontrada en servidor: {label_id}")
+        
+        processed_emails = load_processed_emails()
+        
+        print(f"📫 Buscando correos con la etiqueta '{label_name}'...")
+        # Búsqueda por query
+        query = f"label:{label_name}"
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+
+        if not messages:
+            print("✅ No se encontraron correos pendientes para procesar.")
+            return
             
-        print(f"\n" + "-"*50)
-        print(f"📩 Procesando nuevo correo: {msg_id}")
-        
-        # Descargar el correo completo
-        message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
-        payload = message_data.get('payload', {})
-        
-        # Extraer fecha exacta de recepción en Gmail (milliseconds epoch)
-        internal_date_ms = int(message_data.get('internalDate', 0))
-        fallback_date = datetime.datetime.fromtimestamp(internal_date_ms / 1000.0) if internal_date_ms else firestore.SERVER_TIMESTAMP
-        
-        body_text = extract_email_body(payload)
-        
-        if not body_text:
-            print(f"⚠️ No se pudo extraer texto leíble del correo {msg_id}")
-            # Lo marcamos procesado de todas formas para no ciclar eternamente en correos vacíos
-            mark_as_processed(service, msg_id, label_id)
-            save_processed_email(msg_id)
-            continue
+        for msg in messages:
+            msg_id = msg['id']
             
-        # Para evitar enviar textos absurdamente gigantes a Ollama, limitamos el tamaño
-        truncated_text = body_text[:3500] 
-        print(f"📄 Texto detectado (resumen): {truncated_text[:100].replace(chr(10), ' ')}...")
-        
-        datos_ia = procesar_texto_con_ia(truncated_text, model_name=args.model)
-        
-        if datos_ia:
-            success = registrar_transaccion(datos_ia, fallback_date)
-            if success:
+            if msg_id in processed_emails:
+                print(f"⏭️ El correo {msg_id} ya fue procesado pero sigue etiquetado. Intentando remover etiqueta y saltando...")
+                mark_as_processed(service, msg_id, label_id)
+                continue
+                
+            print(f"\n" + "-"*50)
+            print(f"📩 Procesando nuevo correo: {msg_id}")
+            
+            # Descargar el correo completo
+            message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+            payload = message_data.get('payload', {})
+            
+            # Extraer fecha de recepción del correo (solo fecha, sin hora)
+            internal_date_ms = int(message_data.get('internalDate', 0))
+            fallback_date = datetime.datetime.fromtimestamp(internal_date_ms / 1000.0).strftime("%Y-%m-%d") if internal_date_ms else datetime.datetime.now().strftime("%Y-%m-%d")
+            
+            body_text = extract_email_body(payload)
+            
+            if not body_text:
+                print(f"⚠️ No se pudo extraer texto leíble del correo {msg_id}")
+                # Lo marcamos procesado de todas formas para no ciclar eternamente en correos vacíos
                 mark_as_processed(service, msg_id, label_id)
                 save_processed_email(msg_id)
-        else:
-            print(f"⚠️ El correo {msg_id} falló en la interpretación por IA. Se mantendrá la etiqueta para intentar luego.")
+                continue
+                
+            # Para evitar enviar textos absurdamente gigantes a Ollama, limitamos el tamaño
+            truncated_text = body_text[:3500] 
+            print(f"📄 Texto detectado (resumen): {truncated_text[:100].replace(chr(10), ' ')}...")
+            
+            datos_ia = procesar_texto_con_ia(truncated_text, model_name=args.model)
+            
+            if datos_ia:
+                success = registrar_transaccion(datos_ia, fallback_date, model_name=args.model)
+                if success:
+                    mark_as_processed(service, msg_id, label_id)
+                    save_processed_email(msg_id)
+            else:
+                print(f"⚠️ El correo {msg_id} falló en la interpretación por IA. Se mantendrá la etiqueta para intentar luego.")
+    finally:
+        # SIEMPRE borrar el lock al salir (incluso si hay error)
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
 
 if __name__ == '__main__':
     main()

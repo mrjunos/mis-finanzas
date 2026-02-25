@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Timestamp } from 'firebase/firestore';
+import ConfirmModal from './ConfirmModal';
 
 export default function TransactionModal({ isOpen, onClose, editingTransaction, initialMode = 'transaction' }) {
-    const { addTransaction, updateTransaction, addTransfer, appConfig } = useFinance();
+    const { addTransaction, updateTransaction, addTransfer, appConfig, deleteTransaction } = useFinance();
 
     // Helper to normalize categories access
     const allCategories = useMemo(() => {
@@ -17,7 +18,9 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
         });
     }, [appConfig]);
 
-    const mode = editingTransaction ? 'transaction' : initialMode;
+    const mode = editingTransaction?.type === 'transfer' ? 'transfer' : (editingTransaction ? 'transaction' : initialMode);
+
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -59,7 +62,10 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 const d = editingTransaction.date;
                 const dateObj = d?.toDate ? d.toDate() : new Date(d);
                 if (!isNaN(dateObj)) {
-                    formattedDate = dateObj.toISOString().split('T')[0];
+                    const year = dateObj.getFullYear();
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    formattedDate = `${year}-${month}-${day}`;
                 }
             }
 
@@ -76,8 +82,8 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 card: editingTransaction.card || appConfig?.accounts?.[0] || '',
                 date: formattedDate,
                 comments: editingTransaction.comments || '',
-                destinationContext: 'personal',
-                destinationCard: appConfig?.accounts?.[0] || ''
+                destinationContext: editingTransaction.destinationContext || 'personal',
+                destinationCard: editingTransaction.destinationCard || appConfig?.accounts?.[0] || ''
             });
         } else {
             setFormData({
@@ -108,8 +114,15 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // Parse date if selected, otherwise use now.
-            const txDate = formData.date ? Timestamp.fromDate(new Date(formData.date)) : Timestamp.now();
+            // Parse date if selected, otherwise use today's string
+            let txDate = formData.date;
+            if (!txDate) {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                txDate = `${year}-${month}-${day}`;
+            }
 
             if (mode === 'transfer') {
                 if (formData.card === formData.destinationCard && formData.context === formData.destinationContext) {
@@ -117,18 +130,36 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                     return;
                 }
 
-                const transferData = {
-                    title: formData.title || 'Transferencia',
-                    amount: formData.amount,
-                    currency: formData.currency,
-                    date: txDate,
-                    comments: formData.comments,
-                    sourceContext: formData.context,
-                    sourceAccount: formData.card,
-                    destinationContext: formData.destinationContext,
-                    destinationAccount: formData.destinationCard
-                };
-                await addTransfer(transferData);
+                if (editingTransaction) {
+                    // Update existing transfer
+                    await updateTransaction(editingTransaction.id, {
+                        title: formData.title || 'Transferencia',
+                        amount: Number(formData.amount),
+                        type: 'transfer',
+                        context: formData.context,
+                        destinationContext: formData.destinationContext,
+                        category: 'Financiero y Deudas',
+                        subcategory: '',
+                        currency: formData.currency,
+                        card: formData.card,
+                        destinationCard: formData.destinationCard,
+                        comments: formData.comments,
+                        date: txDate,
+                    });
+                } else {
+                    const transferData = {
+                        title: formData.title || 'Transferencia',
+                        amount: formData.amount,
+                        currency: formData.currency,
+                        date: txDate,
+                        comments: formData.comments,
+                        sourceContext: formData.context,
+                        sourceAccount: formData.card,
+                        destinationContext: formData.destinationContext,
+                        destinationAccount: formData.destinationCard
+                    };
+                    await addTransfer(transferData);
+                }
             } else {
                 const txData = {
                     title: formData.title,
@@ -174,7 +205,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                 </button>
 
                 <h2 className="text-xl font-bold text-slate-800 mb-6">
-                    {mode === 'transfer' ? 'Nueva Transferencia' : (editingTransaction ? 'Editar Transacción' : 'Nueva Transacción')}
+                    {mode === 'transfer' ? (editingTransaction ? 'Editar Transferencia' : 'Nueva Transferencia') : (editingTransaction ? 'Editar Transacción' : 'Nueva Transacción')}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -374,13 +405,37 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                         </div>
                     </div>
 
-                    <div className="pt-4">
+                    <div className="pt-4 flex flex-col gap-3">
                         <button type="submit" className="w-full py-3 bg-primary hover:bg-primary-dark text-slate-900 font-bold rounded-xl shadow-sm transition-colors">
-                            Guardar Transacción
+                            Guardar {mode === 'transfer' ? 'Transferencia' : 'Transacción'}
                         </button>
+                        {editingTransaction && (
+                            <button
+                                type="button"
+                                onClick={() => setConfirmDeleteOpen(true)}
+                                className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-colors"
+                            >
+                                Eliminar Transacción
+                            </button>
+                        )}
                     </div>
                 </form>
             </div>
+
+            <ConfirmModal
+                isOpen={confirmDeleteOpen}
+                onClose={() => setConfirmDeleteOpen(false)}
+                onConfirm={() => {
+                    deleteTransaction(editingTransaction.id);
+                    setConfirmDeleteOpen(false);
+                    onClose();
+                }}
+                title="Eliminar Transacción"
+                message="¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                isDestructive={true}
+            />
         </div>
     );
 }

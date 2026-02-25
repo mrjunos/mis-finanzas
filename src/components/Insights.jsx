@@ -3,6 +3,7 @@ import TransactionModal from './TransactionModal';
 import { useFinance } from '../context/FinanceContext';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { format } from 'date-fns';
+import ConfirmModal from './ConfirmModal';
 
 const EXCHANGE_RATE = 4100; // Hardcoded COP/USD rate for estimation
 
@@ -11,11 +12,19 @@ const Insights = ({ currentContext, onNavigate }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [modalMode, setModalMode] = useState('transaction');
+    const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, txId: null });
+
+    // Helper to detect transfers (new model + legacy)
+    const isTransferTx = (t) => t.type === 'transfer' || t.isTransfer === true;
 
     // Filter transactions by context
     const filteredTransactions = useMemo(() => {
         return transactions.filter(t => {
             if (currentContext === 'unified') return true;
+            // Transfers belong to both contexts — show if either matches
+            if (isTransferTx(t)) {
+                return t.context === currentContext || t.destinationContext === currentContext;
+            }
             return t.context === currentContext;
         });
     }, [transactions, currentContext]);
@@ -33,7 +42,7 @@ const Insights = ({ currentContext, onNavigate }) => {
     const savingsRate = useMemo(() => {
         const currentMonthTxs = filteredTransactions.filter(t => {
             const d = t.date;
-            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !isTransferTx(t);
         });
 
         const income = currentMonthTxs
@@ -52,7 +61,7 @@ const Insights = ({ currentContext, onNavigate }) => {
     const prevSavingsRate = useMemo(() => {
         const prevMonthTxs = filteredTransactions.filter(t => {
             const d = t.date;
-            return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+            return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear && !isTransferTx(t);
         });
 
         const income = prevMonthTxs
@@ -81,7 +90,7 @@ const Insights = ({ currentContext, onNavigate }) => {
             const y = d.getFullYear();
 
             const monthTxs = filteredTransactions.filter(t =>
-                t.date.getMonth() === m && t.date.getFullYear() === y && t.type === 'debit'
+                t.date.getMonth() === m && t.date.getFullYear() === y && t.type === 'debit' && !isTransferTx(t)
             );
 
             if (monthTxs.length > 0) {
@@ -123,7 +132,7 @@ const Insights = ({ currentContext, onNavigate }) => {
             const m = d.getMonth();
             const y = d.getFullYear();
 
-            const txs = filteredTransactions.filter(t => t.date.getMonth() === m && t.date.getFullYear() === y);
+            const txs = filteredTransactions.filter(t => t.date.getMonth() === m && t.date.getFullYear() === y && !isTransferTx(t));
 
             const income = txs
                 .filter(t => t.type === 'credit')
@@ -143,7 +152,7 @@ const Insights = ({ currentContext, onNavigate }) => {
         const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
         const recentTxs = filteredTransactions.filter(t => {
             const d = t.date;
-            return d >= threeMonthsAgo && t.type === 'debit';
+            return d >= threeMonthsAgo && t.type === 'debit' && !isTransferTx(t);
         });
 
         const categories = {};
@@ -183,7 +192,7 @@ const Insights = ({ currentContext, onNavigate }) => {
         const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
         const recentTxs = filteredTransactions.filter(t => {
             const d = t.date;
-            return d >= threeMonthsAgo && t.type === 'debit';
+            return d >= threeMonthsAgo && t.type === 'debit' && !isTransferTx(t);
         });
 
         const accounts = {};
@@ -226,7 +235,7 @@ const Insights = ({ currentContext, onNavigate }) => {
 
         const recentTxs = filteredTransactions.filter(t => {
             const d = t.date;
-            return d >= threeMonthsAgo && t.type === 'debit';
+            return d >= threeMonthsAgo && t.type === 'debit' && !isTransferTx(t);
         });
 
         const groups = {};
@@ -488,32 +497,31 @@ const Insights = ({ currentContext, onNavigate }) => {
                                                     setIsModalOpen(true);
                                                 }}
                                             >
-                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tx.context === 'business' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
+                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isTransferTx(tx) ? 'bg-indigo-50 text-indigo-500' : tx.context === 'business' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
                                                     <span className="material-symbols-outlined text-lg">
-                                                        {tx.context === 'business' ? 'domain' : 'person'}
+                                                        {isTransferTx(tx) ? 'swap_horiz' : tx.context === 'business' ? 'domain' : 'person'}
                                                     </span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-bold text-slate-800 truncate">{tx.title}</p>
                                                     <p className="text-[10px] text-slate-400 uppercase font-medium capitalize truncate">
-                                                        {tx.context === 'business' ? 'Negocio' : 'Personal'}
-                                                        {tx.card && ` • ${tx.card}`}
+                                                        {isTransferTx(tx)
+                                                            ? `${tx.card || '?'} → ${tx.destinationCard || '?'}`
+                                                            : <>{tx.context === 'business' ? 'Negocio' : 'Personal'}{tx.card && ` • ${tx.card}`}</>}
                                                         • {categoryLabels[tx.category] || tx.category}
                                                         • {format(txDate, 'MMM dd, yyyy')}
                                                     </p>
                                                 </div>
                                                 <div className="flex flex-col items-end justify-center gap-1">
-                                                    <p className={`text-xs font-extrabold ${tx.type === 'credit' ? 'text-green-600' : 'text-slate-800'}`}>
-                                                        {tx.type === 'credit' ? '+' : '-'}{formattedAmount}
+                                                    <p className={`text-xs font-extrabold ${isTransferTx(tx) ? 'text-indigo-600' : tx.type === 'credit' ? 'text-green-600' : 'text-slate-800'}`}>
+                                                        {isTransferTx(tx) ? '' : tx.type === 'credit' ? '+' : '-'}{formattedAmount}
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         {tx.comments && <span className="material-symbols-outlined text-[12px] text-slate-400" title={tx.comments}>chat</span>}
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (window.confirm('¿Estás seguro de eliminar esta transacción?')) {
-                                                                    deleteTransaction(tx.id);
-                                                                }
+                                                                setConfirmDelete({ isOpen: true, txId: tx.id });
                                                             }}
                                                             className="text-slate-300 hover:text-red-500 transition-colors"
                                                             title="Eliminar transacción"
@@ -671,6 +679,21 @@ const Insights = ({ currentContext, onNavigate }) => {
                 onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }}
                 editingTransaction={editingTransaction}
                 initialMode={modalMode}
+            />
+
+            <ConfirmModal
+                isOpen={confirmDelete.isOpen}
+                onClose={() => setConfirmDelete({ isOpen: false, txId: null })}
+                onConfirm={() => {
+                    if (confirmDelete.txId) {
+                        deleteTransaction(confirmDelete.txId);
+                    }
+                }}
+                title="Eliminar Transacción"
+                message="¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                isDestructive={true}
             />
         </div>
     );

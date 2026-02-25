@@ -186,4 +186,40 @@ describe('calculateBalances', () => {
         const result = calculateBalances(txs);
         expect(result.netWorth.COP).toEqual(NaN); // Number(undefined) is NaN — this documents current behavior
     });
+
+    it('excludes type=transfer from all balances', () => {
+        const txs = [
+            { type: 'credit', amount: 10000, currency: 'COP', context: 'personal' },
+            { type: 'transfer', amount: 5000, currency: 'COP', context: 'personal', destinationCard: 'Visa' },
+        ];
+        const result = calculateBalances(txs);
+        expect(result.netWorth.COP).toBe(10000); // transfer is excluded
+        expect(result.personalBalance.COP).toBe(10000);
+    });
+
+    it('excludes legacy isTransfer=true from all balances', () => {
+        const txs = [
+            { type: 'credit', amount: 10000, currency: 'COP', context: 'personal' },
+            { type: 'debit', amount: 3000, currency: 'COP', context: 'personal', isTransfer: true },
+            { type: 'credit', amount: 3000, currency: 'COP', context: 'personal', isTransfer: true },
+        ];
+        const result = calculateBalances(txs);
+        expect(result.netWorth.COP).toBe(10000); // both legacy transfers excluded
+        expect(result.personalBalance.COP).toBe(10000);
+    });
+
+    it('correctly calculates balances with mixed regular and transfer transactions', () => {
+        const txs = [
+            { type: 'credit', amount: 50000, currency: 'COP', context: 'personal' },
+            { type: 'debit', amount: 10000, currency: 'COP', context: 'personal' },
+            { type: 'transfer', amount: 20000, currency: 'COP', context: 'personal', destinationCard: 'Visa' },
+            { type: 'credit', amount: 5000, currency: 'USD', context: 'business' },
+            { type: 'transfer', amount: 1000, currency: 'USD', context: 'business', destinationCard: 'Checking' },
+        ];
+        const result = calculateBalances(txs);
+        expect(result.netWorth.COP).toBe(40000); // 50000 - 10000
+        expect(result.personalBalance.COP).toBe(40000);
+        expect(result.netWorth.USD).toBe(5000);
+        expect(result.businessCashFlow.USD).toBe(5000);
+    });
 });

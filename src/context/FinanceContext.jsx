@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc } from 'firebase/firestore';
 import { normalizeCategory, parseTransactionDate, calculateBalances } from '../utils/financeHelpers';
 
 const FinanceContext = createContext();
@@ -144,9 +144,16 @@ export const FinanceProvider = ({ children }) => {
 
     const addTransaction = async (data) => {
         try {
+            // Default to today string if not provided
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const defaultDateStr = `${year}-${month}-${day}`;
+
             await addDoc(collection(db, 'finance_transactions'), {
+                date: defaultDateStr,
                 ...data,
-                date: Timestamp.now(),
             });
         } catch (error) {
             console.error("Error adding document: ", error);
@@ -156,42 +163,26 @@ export const FinanceProvider = ({ children }) => {
 
     const addTransfer = async (transferData) => {
         try {
-            const batch = writeBatch(db);
-            const txCollection = collection(db, 'finance_transactions');
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const defaultDateStr = `${year}-${month}-${day}`;
 
-            // Outflow (Egreso)
-            const outflowRef = doc(txCollection);
-            batch.set(outflowRef, {
-                title: transferData.title || 'Transferencia Enviada',
+            await addDoc(collection(db, 'finance_transactions'), {
+                title: transferData.title || 'Transferencia',
                 amount: Number(transferData.amount),
-                type: 'debit',
+                type: 'transfer',
                 context: transferData.sourceContext,
-                category: 'Transferencia',
+                destinationContext: transferData.destinationContext,
+                category: 'Financiero y Deudas',
                 subcategory: '',
                 currency: transferData.currency,
                 card: transferData.sourceAccount,
+                destinationCard: transferData.destinationAccount,
                 comments: transferData.comments || '',
-                date: transferData.date || Timestamp.now(),
-                isTransfer: true,
+                date: transferData.date || defaultDateStr,
             });
-
-            // Inflow (Ingreso)
-            const inflowRef = doc(txCollection);
-            batch.set(inflowRef, {
-                title: transferData.title || 'Transferencia Recibida',
-                amount: Number(transferData.amount),
-                type: 'credit',
-                context: transferData.destinationContext,
-                category: 'Transferencia',
-                subcategory: '',
-                currency: transferData.currency,
-                card: transferData.destinationAccount,
-                comments: transferData.comments || '',
-                date: transferData.date || Timestamp.now(),
-                isTransfer: true,
-            });
-
-            await batch.commit();
         } catch (error) {
             console.error("Error adding transfer: ", error);
             throw error;

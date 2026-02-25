@@ -12,10 +12,6 @@ const mockDeleteDoc = vi.fn();
 const mockUpdateDoc = vi.fn();
 const mockSetDoc = vi.fn();
 const mockGetDoc = vi.fn();
-const mockWriteBatch = vi.fn(() => ({
-    set: vi.fn(),
-    commit: vi.fn().mockResolvedValue(undefined),
-}));
 
 vi.mock('firebase/firestore', () => ({
     collection: vi.fn(),
@@ -27,7 +23,6 @@ vi.mock('firebase/firestore', () => ({
     Timestamp: { now: vi.fn(() => ({ seconds: 1234567890 })) },
     deleteDoc: (...args) => mockDeleteDoc(...args),
     updateDoc: (...args) => mockUpdateDoc(...args),
-    writeBatch: (...args) => mockWriteBatch(...args),
 }));
 
 vi.mock('../firebase', () => ({
@@ -123,7 +118,7 @@ describe('FinanceProvider', () => {
         const callArgs = mockAddDoc.mock.calls[0][1];
         expect(callArgs.title).toBe('Test');
         expect(callArgs.amount).toBe(5000);
-        expect(callArgs.date).toBeDefined(); // Timestamp.now()
+        expect(callArgs.date).toBeDefined(); // Now a YYYY-MM-DD string
     });
 
     it('exposes deleteTransaction that calls deleteDoc', async () => {

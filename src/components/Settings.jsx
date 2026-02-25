@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import ConfirmModal from './ConfirmModal';
 
 // Helper component for rendering list sections (Currencies, Accounts)
 const ConfigSection = ({
@@ -141,6 +142,8 @@ const CategoryConfigSection = ({ appConfig, saving, updateAppConfig }) => {
     const [expandedCategories, setExpandedCategories] = useState({});
     const [newSubcategories, setNewSubcategories] = useState({}); // Map of catIndex -> inputValue
 
+    const [confirmDeleteCat, setConfirmDeleteCat] = useState({ isOpen: false, index: null });
+
     // New attributes state for adding
     const [newCategoryIcon, setNewCategoryIcon] = useState('category');
     const [newCategoryType, setNewCategoryType] = useState('debit');
@@ -241,15 +244,20 @@ const CategoryConfigSection = ({ appConfig, saving, updateAppConfig }) => {
         setEditingCatIndex(null);
     };
 
-    const handleDeleteCategory = async (index) => {
+    const handleDeleteCategory = (index) => {
         if (categories.length === 1) {
             alert("No puedes eliminar la última categoría. Debes tener al menos una.");
             return;
         }
-        if (!window.confirm("¿Eliminar categoría y todas sus subcategorías?")) return;
+        setConfirmDeleteCat({ isOpen: true, index });
+    };
+
+    const confirmDeleteCategory = async () => {
+        if (confirmDeleteCat.index === null) return;
         const updatedCategories = [...categories];
-        updatedCategories.splice(index, 1);
+        updatedCategories.splice(confirmDeleteCat.index, 1);
         await updateAppConfig({ ...appConfig, categories: updatedCategories });
+        setConfirmDeleteCat({ isOpen: false, index: null });
     };
 
     const handleMoveCategoryUp = async (index) => {
@@ -687,6 +695,17 @@ const CategoryConfigSection = ({ appConfig, saving, updateAppConfig }) => {
                     <p className="text-xs text-slate-400 italic text-center py-4">Sin elementos.</p>
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={confirmDeleteCat.isOpen}
+                onClose={() => setConfirmDeleteCat({ isOpen: false, index: null })}
+                onConfirm={confirmDeleteCategory}
+                title="Eliminar Categoría"
+                message="¿Estás seguro de que deseas eliminar esta categoría y todas sus subcategorías? Esta acción no se puede deshacer y puede afectar las transacciones existentes."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                isDestructive={true}
+            />
         </div>
     );
 };
