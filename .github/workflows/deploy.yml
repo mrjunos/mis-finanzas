@@ -14,8 +14,14 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
+      deployments: write
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
       - name: Install dependencies
         run: npm ci
       - name: Lint
@@ -24,6 +30,10 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      # firebaseToolsVersion is pinned to 13.29.1 to avoid a breaking change in
+      # firebase-tools v15+ that requires the service account to have the
+      # roles/serviceusage.serviceUsageConsumer IAM role. Pinning to 13.29.1
+      # is a workaround until that role is granted in the Firebase/GCP console.
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
