@@ -30,13 +30,8 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
-      # firebaseToolsVersion is pinned to 13.29.1 to avoid a breaking change in
-      # firebase-tools v15+ that requires the service account to have the
-      # roles/serviceusage.serviceUsageConsumer IAM role. Pinning to 13.29.1
-      # is a workaround until that role is granted in the Firebase/GCP console.
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BREWBOOKS_MVP }}'
           projectId: brewbooks-mvp
-          firebaseToolsVersion: 13.29.1
