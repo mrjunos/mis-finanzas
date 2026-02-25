@@ -30,14 +30,9 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
-      # firebase-tools@15.7.0 broke preview channel deploys ("channelID is
-      # currently required") and the action-hosting-deploy@v0 does not yet
-      # handle this change. Pin to 13.29.1 until the action is updated.
-      # The service account already has roles/serviceusage.serviceUsageConsumer
-      # so upgrading the pin will be safe once the action supports v15.7+.
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BREWBOOKS_MVP }}'
           projectId: brewbooks-mvp
-          firebaseToolsVersion: 13.29.1
+          channelId: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'live' }}
