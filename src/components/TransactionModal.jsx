@@ -18,7 +18,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
         });
     }, [appConfig]);
 
-    const mode = editingTransaction?.type === 'transfer' ? 'transfer' : (editingTransaction ? 'transaction' : initialMode);
+    const mode = (editingTransaction?.type === 'transfer' || editingTransaction?.isTransfer) ? 'transfer' : (editingTransaction ? 'transaction' : initialMode);
 
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
@@ -38,7 +38,13 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     });
 
     const filteredCategories = useMemo(() => {
-        if (mode === 'transfer') return [];
+        if (mode === 'transfer') {
+            // For transfers, show all categories matching source context (any type)
+            return allCategories.filter(c => {
+                const cContext = c.context || 'personal';
+                return cContext === formData.context || cContext === 'both';
+            });
+        }
         return allCategories.filter(c => {
             const cType = c.type || 'debit';
             const cContext = c.context || 'personal';
@@ -47,7 +53,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     }, [allCategories, formData.type, formData.context, mode]);
 
     React.useEffect(() => {
-        if (mode === 'transaction' && isOpen && filteredCategories.length > 0) {
+        if (isOpen && filteredCategories.length > 0) {
             const isValid = filteredCategories.some(c => c.name === formData.category);
             if (!isValid) {
                 setFormData(prev => ({ ...prev, category: filteredCategories[0].name, subcategory: '' }));
@@ -138,8 +144,8 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                         type: 'transfer',
                         context: formData.context,
                         destinationContext: formData.destinationContext,
-                        category: 'Financiero y Deudas',
-                        subcategory: '',
+                        category: formData.category,
+                        subcategory: formData.subcategory,
                         currency: formData.currency,
                         card: formData.card,
                         destinationCard: formData.destinationCard,
@@ -153,6 +159,8 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                         currency: formData.currency,
                         date: txDate,
                         comments: formData.comments,
+                        category: formData.category,
+                        subcategory: formData.subcategory,
                         sourceContext: formData.context,
                         sourceAccount: formData.card,
                         destinationContext: formData.destinationContext,
@@ -351,6 +359,46 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                                     <option value="business">Negocio</option>
                                 </select>
                             </div>
+                        )}
+
+                        {/* Category & Subcategory for transfers */}
+                        {mode === 'transfer' && (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                                    <select
+                                        className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        value={formData.category}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                category: e.target.value,
+                                                subcategory: ''
+                                            });
+                                        }}
+                                    >
+                                        {filteredCategories.map(cat => (
+                                            <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {currentSubcategories.length > 0 && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subcategoría</label>
+                                        <select
+                                            className="custom-select w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                            value={formData.subcategory}
+                                            onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                        >
+                                            <option value="">(Sin subcategoría)</option>
+                                            {currentSubcategories.map(sub => (
+                                                <option key={sub} value={sub}>{sub}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {mode === 'transaction' && (
