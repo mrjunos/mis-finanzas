@@ -78,74 +78,12 @@ const Insights = ({ currentContext, onNavigate }) => {
 
     const savingsRateTrend = savingsRate - prevSavingsRate;
 
-    // 2. Burn Rate (Average Monthly Expenses - Last 3 Months)
-    const burnRate = useMemo(() => {
-        // Get last 3 months
-        let totalExpenses = 0;
-        let monthsCounted = 0;
-
-        for (let i = 0; i < 3; i++) {
-            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const m = d.getMonth();
-            const y = d.getFullYear();
-
-            const monthTxs = filteredTransactions.filter(t =>
-                t.date.getMonth() === m && t.date.getFullYear() === y && t.type === 'debit' && !isTransferTx(t)
-            );
-
-            if (monthTxs.length > 0) {
-                const monthlyExp = monthTxs.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * EXCHANGE_RATE : t.amount), 0);
-                totalExpenses += monthlyExp;
-                monthsCounted++;
-            }
-        }
-
-        return monthsCounted > 0 ? totalExpenses / monthsCounted : 0;
-    }, [filteredTransactions, today]);
 
 
-    // 3. Currency Exposure
-    const currencyExposure = useMemo(() => {
-        const totals = getTotals(currentContext);
-        // totals.netWorth is { COP: X, USD: Y }
-        const cop = totals.netWorth.COP || 0;
-        const usd = totals.netWorth.USD || 0;
-        const totalInCop = cop + (usd * EXCHANGE_RATE);
-
-        if (totalInCop === 0) return { cop: 0, usd: 0 };
-
-        return {
-            cop: (cop / totalInCop) * 100,
-            usd: ((usd * EXCHANGE_RATE) / totalInCop) * 100
-        };
-    }, [getTotals, currentContext]);
 
 
     // --- Charts Data ---
 
-    // 4. Cashflow History (Last 6 Months)
-    const cashflowData = useMemo(() => {
-        const data = [];
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const monthName = d.toLocaleString('es-CO', { month: 'short' });
-            const m = d.getMonth();
-            const y = d.getFullYear();
-
-            const txs = filteredTransactions.filter(t => t.date.getMonth() === m && t.date.getFullYear() === y && !isTransferTx(t));
-
-            const income = txs
-                .filter(t => t.type === 'credit')
-                .reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * EXCHANGE_RATE : t.amount), 0);
-
-            const expenses = txs
-                .filter(t => t.type === 'debit')
-                .reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * EXCHANGE_RATE : t.amount), 0);
-
-            data.push({ month: monthName, income, expenses });
-        }
-        return data;
-    }, [filteredTransactions, today]);
 
     // 5. Category Breakdown (Last 3 Months)
     const categoryBreakdown = useMemo(() => {
@@ -167,22 +105,11 @@ const Insights = ({ currentContext, onNavigate }) => {
 
         const sorted = Object.entries(categories)
             .sort(([, a], [, b]) => b - a)
-            .slice(0, 3) // Top 3
             .map(([name, amount]) => ({
                 name,
                 amount,
                 percentage: total > 0 ? (amount / total) * 100 : 0
             }));
-
-        // Add "Others"
-        const top3Total = sorted.reduce((acc, curr) => acc + curr.amount, 0);
-        if (total > top3Total) {
-            sorted.push({
-                name: 'Otros',
-                amount: total - top3Total,
-                percentage: ((total - top3Total) / total) * 100
-            });
-        }
 
         return sorted;
     }, [filteredTransactions, today]);
@@ -207,22 +134,11 @@ const Insights = ({ currentContext, onNavigate }) => {
 
         const sorted = Object.entries(accounts)
             .sort(([, a], [, b]) => b - a)
-            .slice(0, 3) // Top 3
             .map(([name, amount]) => ({
                 name,
                 amount,
                 percentage: total > 0 ? (amount / total) * 100 : 0
             }));
-
-        // Add "Others"
-        const top3Total = sorted.reduce((acc, curr) => acc + curr.amount, 0);
-        if (total > top3Total) {
-            sorted.push({
-                name: 'Otros',
-                amount: total - top3Total,
-                percentage: ((total - top3Total) / total) * 100
-            });
-        }
 
         return sorted;
     }, [filteredTransactions, today]);
@@ -381,197 +297,127 @@ const Insights = ({ currentContext, onNavigate }) => {
                     </div>
                 </div>
 
-                {/* Top Metrics Area */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-                    {/* Main Balance */}
-                    {renderCurrencyWidgetContent(
-                        activeBalanceTitle,
-                        activeBalanceData,
-                        activeBalanceIcon,
-                        activeBalanceClass,
-                        activeBalanceLineContent
-                    )}
-
-                    {/* Savings Rate */}
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300">
-                        <div>
-                            <div className="flex justify-between items-start mb-2">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tasa de Ahorro</p>
-                                <div className="p-2 bg-teal-50 rounded-xl text-teal-500">
-                                    <span className="material-symbols-outlined text-lg">trending_up</span>
-                                </div>
-                            </div>
-                            <h2 className="text-3xl font-bold text-gray-800">{savingsRate.toFixed(1)}%</h2>
+                {/* Top Area: Actividad Reciente & KPIs */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+                    {/* 1. Actividad Reciente */}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col h-full min-h-[400px]">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-blue-500">history</span> Actividad Reciente
+                            </h3>
+                            <button
+                                onClick={() => onNavigate && onNavigate('transactions')}
+                                className="text-[10px] font-bold text-primary-dark hover:underline uppercase tracking-wider"
+                            >
+                                Ver Todo
+                            </button>
                         </div>
-                        <p className={`text-xs flex items-center mt-4 font-bold ${savingsRateTrend >= 0 ? 'text-teal-500' : 'text-red-500'}`}>
-                            <span className="material-symbols-outlined text-[14px] mr-1">
-                                {savingsRateTrend >= 0 ? 'north_east' : 'south_east'}
-                            </span>
-                            {savingsRateTrend >= 0 ? '+' : ''}{savingsRateTrend.toFixed(1)}% vs mes pasado
-                        </p>
+                        <div className="space-y-1 overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                            {filteredTransactions.length === 0 ? (
+                                <p className="text-xs text-slate-500 py-4 text-center">No hay transacciones registradas.</p>
+                            ) : (
+                                filteredTransactions.slice(0, 8).map(tx => {
+                                    const categoryLabels = {
+                                        'general': 'General',
+                                        'food': 'Comida y Salidas',
+                                        'software': 'Software',
+                                        'services': 'Servicios'
+                                    };
+
+                                    const currencyCode = tx.currency || 'USD';
+                                    const formattedAmount = formatCurrency(Number(tx.amount), currencyCode);
+
+                                    let txDate;
+                                    try {
+                                        txDate = tx.date && tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                                    } catch {
+                                        txDate = new Date();
+                                    }
+
+                                    return (
+                                        <div
+                                            key={tx.id}
+                                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer group"
+                                            onClick={() => {
+                                                setEditingTransaction(tx);
+                                                setModalMode('transaction');
+                                                setIsModalOpen(true);
+                                            }}
+                                        >
+                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isTransferTx(tx) ? 'bg-indigo-50 text-indigo-500' : tx.context === 'business' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
+                                                <span className="material-symbols-outlined text-lg">
+                                                    {isTransferTx(tx) ? 'swap_horiz' : tx.context === 'business' ? 'domain' : 'person'}
+                                                </span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-slate-800 truncate">{tx.title}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-medium capitalize truncate">
+                                                    {isTransferTx(tx)
+                                                        ? `${tx.card || '?'} → ${tx.destinationCard || '?'}`
+                                                        : <>{tx.context === 'business' ? 'Negocio' : 'Personal'}{tx.card && ` • ${tx.card}`}</>}
+                                                    • {categoryLabels[tx.category] || tx.category}
+                                                    • {format(txDate, 'MMM dd, yyyy')}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col items-end justify-center gap-1">
+                                                <p className={`text-xs font-extrabold ${isTransferTx(tx) ? 'text-indigo-600' : tx.type === 'credit' ? 'text-green-600' : 'text-slate-800'}`}>
+                                                    {isTransferTx(tx) ? '' : tx.type === 'credit' ? '+' : '-'}{formattedAmount}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    {tx.comments && <span className="material-symbols-outlined text-[12px] text-slate-400" title={tx.comments}>chat</span>}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setConfirmDelete({ isOpen: true, txId: tx.id });
+                                                        }}
+                                                        className="text-slate-300 hover:text-red-500 transition-colors"
+                                                        title="Eliminar transacción"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
                     </div>
 
-                    {/* Burn Rate */}
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300">
-                        <div>
-                            <div className="flex justify-between items-start mb-2">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Burn Rate</p>
-                                <div className="p-2 bg-red-50 rounded-xl text-red-500">
-                                    <span className="material-symbols-outlined text-lg">local_fire_department</span>
-                                </div>
-                            </div>
-                            <h2 className="text-3xl font-bold text-gray-800">{formatCurrency(burnRate, 'COP')} <span className="text-sm text-gray-400 font-normal">COP/m</span></h2>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-4 font-bold uppercase tracking-wider">Promedio 3 meses</p>
-                    </div>
+                    {/* 2. Top Metrics Area */}
+                    <div className="flex flex-col gap-6">
+                        {/* Main Balance */}
+                        {renderCurrencyWidgetContent(
+                            activeBalanceTitle,
+                            activeBalanceData,
+                            activeBalanceIcon,
+                            activeBalanceClass,
+                            activeBalanceLineContent
+                        )}
 
-                    {/* Currency Exposure */}
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300">
-                        <div>
-                            <div className="flex justify-between items-start mb-2">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Moneda</p>
-                                <div className="p-2 bg-blue-50 rounded-xl text-blue-500">
-                                    <span className="material-symbols-outlined text-lg">attach_money</span>
+                        {/* Savings Rate */}
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300 flex-1">
+                            <div>
+                                <div className="flex justify-between items-start mb-2">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tasa de Ahorro</p>
+                                    <div className="p-2 bg-teal-50 rounded-xl text-teal-500">
+                                        <span className="material-symbols-outlined text-lg">trending_up</span>
+                                    </div>
                                 </div>
+                                <h2 className="text-3xl font-bold text-gray-800">{savingsRate.toFixed(1)}%</h2>
                             </div>
-                            <div className="flex items-center gap-4 mt-4">
-                                <div className="flex-1">
-                                    <div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">COP</span><span className="font-bold text-gray-500">{currencyExposure.cop.toFixed(0)}%</span></div>
-                                    <div className="h-2 w-full bg-gray-100 rounded-full"><div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${currencyExposure.cop}%` }}></div></div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">USD</span><span className="font-bold text-gray-500">{currencyExposure.usd.toFixed(0)}%</span></div>
-                                    <div className="h-2 w-full bg-gray-100 rounded-full"><div className="h-full bg-teal-400 rounded-full transition-all duration-500" style={{ width: `${currencyExposure.usd}%` }}></div></div>
-                                </div>
-                            </div>
+                            <p className={`text-xs flex items-center mt-4 font-bold ${savingsRateTrend >= 0 ? 'text-teal-500' : 'text-red-500'}`}>
+                                <span className="material-symbols-outlined text-[14px] mr-1">
+                                    {savingsRateTrend >= 0 ? 'north_east' : 'south_east'}
+                                </span>
+                                {savingsRateTrend >= 0 ? '+' : ''}{savingsRateTrend.toFixed(1)}% vs mes pasado
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Main Charts Area Option 2: 2 cols for Charts/Activity, then 3 cols for side widgets */}
+                {/* Main Charts Area */}
                 <div className="space-y-6">
-                    {/* Top Row: Cashflow and Activity */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Recent Activity */}
-                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col h-full">
-                            <div className="flex items-center justify-between mb-5">
-                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-blue-500">history</span> Actividad Reciente
-                                </h3>
-                                <button
-                                    onClick={() => onNavigate && onNavigate('transactions')}
-                                    className="text-[10px] font-bold text-primary-dark hover:underline uppercase tracking-wider"
-                                >
-                                    Ver Todo
-                                </button>
-                            </div>
-                            <div className="space-y-1 overflow-y-auto flex-1 h-64 pr-2">
-                                {filteredTransactions.length === 0 ? (
-                                    <p className="text-xs text-slate-500 py-4 text-center">No hay transacciones registradas.</p>
-                                ) : (
-                                    filteredTransactions.slice(0, 8).map(tx => {
-                                        const categoryLabels = {
-                                            'general': 'General',
-                                            'food': 'Comida y Salidas',
-                                            'software': 'Software',
-                                            'services': 'Servicios'
-                                        };
-
-                                        const currencyCode = tx.currency || 'USD';
-                                        const formattedAmount = formatCurrency(Number(tx.amount), currencyCode);
-
-                                        let txDate;
-                                        try {
-                                            txDate = tx.date && tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-                                        } catch {
-                                            txDate = new Date();
-                                        }
-
-                                        return (
-                                            <div
-                                                key={tx.id}
-                                                className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer group"
-                                                onClick={() => {
-                                                    setEditingTransaction(tx);
-                                                    setModalMode('transaction');
-                                                    setIsModalOpen(true);
-                                                }}
-                                            >
-                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isTransferTx(tx) ? 'bg-indigo-50 text-indigo-500' : tx.context === 'business' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
-                                                    <span className="material-symbols-outlined text-lg">
-                                                        {isTransferTx(tx) ? 'swap_horiz' : tx.context === 'business' ? 'domain' : 'person'}
-                                                    </span>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-bold text-slate-800 truncate">{tx.title}</p>
-                                                    <p className="text-[10px] text-slate-400 uppercase font-medium capitalize truncate">
-                                                        {isTransferTx(tx)
-                                                            ? `${tx.card || '?'} → ${tx.destinationCard || '?'}`
-                                                            : <>{tx.context === 'business' ? 'Negocio' : 'Personal'}{tx.card && ` • ${tx.card}`}</>}
-                                                        • {categoryLabels[tx.category] || tx.category}
-                                                        • {format(txDate, 'MMM dd, yyyy')}
-                                                    </p>
-                                                </div>
-                                                <div className="flex flex-col items-end justify-center gap-1">
-                                                    <p className={`text-xs font-extrabold ${isTransferTx(tx) ? 'text-indigo-600' : tx.type === 'credit' ? 'text-green-600' : 'text-slate-800'}`}>
-                                                        {isTransferTx(tx) ? '' : tx.type === 'credit' ? '+' : '-'}{formattedAmount}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        {tx.comments && <span className="material-symbols-outlined text-[12px] text-slate-400" title={tx.comments}>chat</span>}
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setConfirmDelete({ isOpen: true, txId: tx.id });
-                                                            }}
-                                                            className="text-slate-300 hover:text-red-500 transition-colors"
-                                                            title="Eliminar transacción"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[14px]">delete</span>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Cashflow Chart */}
-                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex flex-col h-full">
-                            <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-teal-500">bolt</span> Histórico de Flujo de Caja
-                            </h3>
-
-                            <div className="h-64 flex flex-1 items-end gap-2 md:gap-6 pt-4 px-2">
-                                {cashflowData.map((mes, i) => {
-                                    const maxVal = Math.max(...cashflowData.map(d => Math.max(d.income, d.expenses))) || 1;
-                                    const incomeHeight = (mes.income / maxVal) * 100;
-                                    const expenseHeight = (mes.expenses / maxVal) * 100;
-
-                                    return (
-                                        <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full">
-                                            <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] p-2 rounded-lg whitespace-nowrap z-10 pointer-events-none shadow-lg">
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-400"></div> IN: {formatCurrency(mes.income, 'COP')}</div>
-                                                <div className="flex items-center gap-1 mt-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> OUT: {formatCurrency(mes.expenses, 'COP')}</div>
-                                            </div>
-
-                                            <div className="w-full flex justify-center gap-1 items-end h-full">
-                                                <div className="w-3 md:w-6 bg-teal-400 rounded-t-md hover:bg-teal-500 transition-all duration-300 relative group-hover:shadow-[0_0_15px_rgba(45,212,191,0.5)]" style={{ height: `${incomeHeight}%` }}></div>
-                                                <div className="w-3 md:w-6 bg-red-400 rounded-t-md hover:bg-red-500 transition-all duration-300 relative group-hover:shadow-[0_0_15px_rgba(248,113,113,0.5)]" style={{ height: `${expenseHeight}%` }}></div>
-                                            </div>
-                                            <span className="text-xs text-gray-400 mt-3 font-semibold uppercase">{mes.month}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div className="flex justify-center gap-6 mt-6 border-t border-gray-50 pt-4">
-                                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal-400"></div><span className="text-sm text-gray-600 font-medium">Ingresos</span></div>
-                                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-400"></div><span className="text-sm text-gray-600 font-medium">Egresos</span></div>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Bottom Row: Category, Card Breakdown, Top Fugas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -584,26 +430,34 @@ const Insights = ({ currentContext, onNavigate }) => {
 
                             <div className="flex-1 flex flex-col mt-2">
                                 <div className="w-full h-4 bg-gray-100 rounded-full flex overflow-hidden mb-4">
-                                    {categoryBreakdown.map((cat, i) => (
-                                        <div
-                                            key={cat.name}
-                                            className={`h-full ${i === 0 ? 'bg-slate-800' : i === 1 ? 'bg-teal-400' : i === 2 ? 'bg-red-400' : 'bg-gray-300'}`}
-                                            style={{ width: `${cat.percentage}%` }}
-                                            title={`${cat.name}: ${cat.percentage.toFixed(1)}%`}
-                                        ></div>
-                                    ))}
+                                    {categoryBreakdown.map((cat, i) => {
+                                        const colors = ['bg-slate-800', 'bg-teal-400', 'bg-red-400', 'bg-amber-400', 'bg-purple-400', 'bg-indigo-400', 'bg-pink-400', 'bg-blue-400'];
+                                        const colorClass = colors[i % colors.length];
+                                        return (
+                                            <div
+                                                key={cat.name}
+                                                className={`h-full ${colorClass}`}
+                                                style={{ width: `${cat.percentage}%` }}
+                                                title={`${cat.name}: ${cat.percentage.toFixed(1)}%`}
+                                            ></div>
+                                        );
+                                    })}
                                 </div>
 
                                 <ul className="space-y-3">
-                                    {categoryBreakdown.map((cat, i) => (
-                                        <li key={cat.name} className="flex justify-between text-sm items-center">
-                                            <span className="flex items-center gap-2 text-gray-600 font-medium">
-                                                <div className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-slate-800' : i === 1 ? 'bg-teal-400' : i === 2 ? 'bg-red-400' : 'bg-gray-300'}`}></div>
-                                                {cat.name}
-                                            </span>
-                                            <span className="font-bold text-gray-800">{cat.percentage.toFixed(0)}%</span>
-                                        </li>
-                                    ))}
+                                    {categoryBreakdown.map((cat, i) => {
+                                        const colors = ['bg-slate-800', 'bg-teal-400', 'bg-red-400', 'bg-amber-400', 'bg-purple-400', 'bg-indigo-400', 'bg-pink-400', 'bg-blue-400'];
+                                        const colorClass = colors[i % colors.length];
+                                        return (
+                                            <li key={cat.name} className="flex justify-between text-sm items-center">
+                                                <span className="flex items-center gap-2 text-gray-600 font-medium">
+                                                    <div className={`w-2 h-2 rounded-full ${colorClass}`}></div>
+                                                    {cat.name}
+                                                </span>
+                                                <span className="font-bold text-gray-800">{cat.percentage.toFixed(0)}%</span>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             </div>
                         </div>
@@ -617,26 +471,34 @@ const Insights = ({ currentContext, onNavigate }) => {
 
                             <div className="flex-1 flex flex-col mt-2">
                                 <div className="w-full h-4 bg-gray-100 rounded-full flex overflow-hidden mb-4">
-                                    {cardBreakdown.map((acc, i) => (
-                                        <div
-                                            key={acc.name}
-                                            className={`h-full ${i === 0 ? 'bg-secondary' : i === 1 ? 'bg-primary-dark' : i === 2 ? 'bg-blue-400' : 'bg-gray-300'}`}
-                                            style={{ width: `${acc.percentage}%` }}
-                                            title={`${acc.name}: ${acc.percentage.toFixed(1)}%`}
-                                        ></div>
-                                    ))}
+                                    {cardBreakdown.map((acc, i) => {
+                                        const cardColors = ['bg-secondary', 'bg-primary-dark', 'bg-blue-400', 'bg-teal-400', 'bg-slate-800', 'bg-purple-400', 'bg-amber-400'];
+                                        const colorClass = cardColors[i % cardColors.length];
+                                        return (
+                                            <div
+                                                key={acc.name}
+                                                className={`h-full ${colorClass}`}
+                                                style={{ width: `${acc.percentage}%` }}
+                                                title={`${acc.name}: ${acc.percentage.toFixed(1)}%`}
+                                            ></div>
+                                        );
+                                    })}
                                 </div>
 
                                 <ul className="space-y-3">
-                                    {cardBreakdown.map((acc, i) => (
-                                        <li key={acc.name} className="flex justify-between text-sm items-center">
-                                            <span className="flex items-center gap-2 text-gray-600 font-medium overflow-hidden whitespace-nowrap overflow-ellipsis flex-1">
-                                                <div className={`w-2 h-2 rounded-full shrink-0 ${i === 0 ? 'bg-secondary' : i === 1 ? 'bg-primary-dark' : i === 2 ? 'bg-blue-400' : 'bg-gray-300'}`}></div>
-                                                <span className="truncate" title={acc.name}>{acc.name}</span>
-                                            </span>
-                                            <span className="font-bold text-gray-800 shrink-0 ml-2">{acc.percentage.toFixed(0)}%</span>
-                                        </li>
-                                    ))}
+                                    {cardBreakdown.map((acc, i) => {
+                                        const cardColors = ['bg-secondary', 'bg-primary-dark', 'bg-blue-400', 'bg-teal-400', 'bg-slate-800', 'bg-purple-400', 'bg-amber-400'];
+                                        const colorClass = cardColors[i % cardColors.length];
+                                        return (
+                                            <li key={acc.name} className="flex justify-between text-sm items-center">
+                                                <span className="flex items-center gap-2 text-gray-600 font-medium overflow-hidden whitespace-nowrap overflow-ellipsis flex-1">
+                                                    <div className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`}></div>
+                                                    <span className="truncate" title={acc.name}>{acc.name}</span>
+                                                </span>
+                                                <span className="font-bold text-gray-800 shrink-0 ml-2">{acc.percentage.toFixed(0)}%</span>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             </div>
                         </div>
