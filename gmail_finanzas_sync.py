@@ -26,7 +26,6 @@ except ImportError:
 GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'credentials.json')
 TOKEN_FILE = os.path.join(os.path.dirname(__file__), 'token.json')
-PROCESSED_FILE = os.path.join(os.path.dirname(__file__), 'processed_emails.txt')
 LOCK_FILE = os.path.join(os.path.dirname(__file__), 'gmail_sync.lock')
 
 # Etiqueta por defecto a buscar
@@ -55,17 +54,16 @@ def authenticate_gmail():
             token.write(creds.to_json())
     return build('gmail', 'v1', credentials=creds)
 
-def load_processed_emails():
-    """Carga los IDs de los correos ya procesados."""
-    if not os.path.exists(PROCESSED_FILE):
-        return set()
-    with open(PROCESSED_FILE, 'r') as f:
-        return set(line.strip() for line in f if line.strip())
+def load_processed_emails(db):
+    """Carga los IDs de los correos ya procesados desde Firestore."""
+    docs = db.collection('processed_gmail_ids').stream()
+    return {doc.id for doc in docs}
 
-def save_processed_email(email_id):
-    """Guarda un ID de correo en la lista de procesados."""
-    with open(PROCESSED_FILE, 'a') as f:
-        f.write(f"{email_id}\n")
+def save_processed_email(db, email_id):
+    """Guarda un ID de correo en Firestore como procesado."""
+    db.collection('processed_gmail_ids').document(email_id).set({
+        'processed_at': datetime.datetime.utcnow().isoformat()
+    })
 
 def get_label_id(service, label_name):
     """Busca el ID interno de Gmail correspondiente al nombre de una etiqueta."""
@@ -270,6 +268,8 @@ def main():
     parser.add_argument('--model', default='lfm2:24b', help="Modelo de LLM a usar (por defecto: lfm2:24b)")
     args = parser.parse_args()
 
+    db = conectar_db()
+
     # --- Lock file: evitar ejecuciones simultáneas ---
     if os.path.exists(LOCK_FILE):
         try:
@@ -288,10 +288,6 @@ def main():
 
     try:
         label_name = args.label
-        
-        # Verificando si existe la estructura basica
-        if not os.path.exists(PROCESSED_FILE):
-            open(PROCESSED_FILE, 'w').close()
 
         print("🔑 Iniciando conexión con Gmail...")
         service = authenticate_gmail()
@@ -306,7 +302,7 @@ def main():
 
         print(f"✅ Etiqueta encontrada en servidor: {label_id}")
         
-        processed_emails = load_processed_emails()
+        processed_emails = load_processed_emails(db)
         
         print(f"📫 Buscando correos con la etiqueta '{label_name}'...")
         # Búsqueda por query
@@ -343,7 +339,7 @@ def main():
                 print(f"⚠️ No se pudo extraer texto leíble del correo {msg_id}")
                 # Lo marcamos procesado de todas formas para no ciclar eternamente en correos vacíos
                 mark_as_processed(service, msg_id, label_id)
-                save_processed_email(msg_id)
+                save_processed_email(db, msg_id)
                 continue
                 
             # Para evitar enviar textos absurdamente gigantes a Ollama, limitamos el tamaño
@@ -356,7 +352,7 @@ def main():
                 success = registrar_transaccion(datos_ia, fallback_date, model_name=args.model)
                 if success:
                     mark_as_processed(service, msg_id, label_id)
-                    save_processed_email(msg_id)
+                    save_processed_email(db, msg_id)
             else:
                 print(f"⚠️ El correo {msg_id} falló en la interpretación por IA. Se mantendrá la etiqueta para intentar luego.")
     finally:

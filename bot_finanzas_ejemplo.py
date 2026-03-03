@@ -4,6 +4,7 @@ import argparse
 import os
 import json
 from firebase_admin import firestore
+from google.cloud.firestore_v1 import Query
 from utils import conectar_db
 
 def mostrar_opciones():
@@ -136,6 +137,37 @@ def registrar_transaccion(args):
     except Exception as e:
         print(f"\n❌ Error al guardar en Firebase: {e}")
 
+def listar_procesados(args):
+    """Lista los últimos N correos procesados desde Firestore."""
+    db = conectar_db()
+    docs = (
+        db.collection('processed_gmail_ids')
+        .order_by('processed_at', direction=Query.DESCENDING)
+        .limit(args.limit)
+        .stream()
+    )
+    results = [(doc.id, doc.to_dict().get('processed_at', '')) for doc in docs]
+    if not results:
+        print("No hay correos procesados en Firestore.")
+        return
+    print(f"\n{'ID':<25} {'processed_at'}")
+    print("-" * 50)
+    for email_id, processed_at in results:
+        print(f"{email_id:<25} {processed_at}")
+    print()
+
+def eliminar_procesados(args):
+    """Elimina IDs de correos procesados para permitir reprocesarlos."""
+    db = conectar_db()
+    for email_id in args.ids:
+        ref = db.collection('processed_gmail_ids').document(email_id)
+        doc = ref.get()
+        if doc.exists:
+            ref.delete()
+            print(f"✅ Eliminado: {email_id}")
+        else:
+            print(f"⚠️ No encontrado: {email_id}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Puente de Firebase para el Bot de Finanzas")
     subparsers = parser.add_subparsers(dest="command", help="Comandos disponibles")
@@ -164,6 +196,16 @@ if __name__ == "__main__":
     ai_parser = subparsers.add_parser('ai', help="Añadir transacción analizando texto libre con IA")
     ai_parser.add_argument('text', nargs='+', help="El texto descriptivo del movimiento")
 
+    # COMANDO 4: Listar correos procesados
+    # Uso: python3 bot_finanzas_ejemplo.py processed [--limit N]
+    proc_parser = subparsers.add_parser('processed', help="Listar últimos correos procesados")
+    proc_parser.add_argument('--limit', type=int, default=10, help="Cuántos registros mostrar (default: 10)")
+
+    # COMANDO 5: Eliminar IDs procesados para reprocesar
+    # Uso: python3 bot_finanzas_ejemplo.py unprocess <id1> [id2 ...]
+    unpro_parser = subparsers.add_parser('unprocess', help="Eliminar IDs de correos procesados para poder reprocesarlos")
+    unpro_parser.add_argument('ids', nargs='+', help="Uno o más Gmail message IDs a eliminar")
+
     args = parser.parse_args()
 
     if args.command == 'options':
@@ -180,5 +222,9 @@ if __name__ == "__main__":
             if 'date' not in datos_ia:
                 setattr(args_falsos, 'date', None)
             registrar_transaccion(args_falsos)
+    elif args.command == 'processed':
+        listar_procesados(args)
+    elif args.command == 'unprocess':
+        eliminar_procesados(args)
     else:
         parser.print_help()

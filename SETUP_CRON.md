@@ -15,6 +15,17 @@ Este cron ejecuta `gmail_finanzas_sync.py` cada 2 minutos para importar transacc
    - `firebase-adminsdk-fbsvc-bb7cb78f3e.json` — Service Account de Firebase
    - `token.json` — Se genera automáticamente la primera vez que corres el script manualmente
 
+## Deduplicación
+
+El script registra cada correo procesado en la colección `processed_gmail_ids` de Firestore. El document ID es el Gmail message ID y tiene un solo campo:
+
+```
+processed_gmail_ids/{message_id}
+  └── processed_at: "2026-03-03T20:21:49.737014"  (ISO UTC)
+```
+
+Esto permite correr el script desde cualquier equipo sin perder el estado de sincronización.
+
 ## Primera ejecución (manual)
 
 Antes de configurar el cron, corre el script manualmente para autorizar Gmail:
@@ -44,6 +55,28 @@ Se abrirá un navegador para que autorices el acceso a tu cuenta de Gmail. Esto 
    ```bash
    crontab -l
    ```
+
+## Inspección y depuración de correos procesados
+
+`bot_finanzas_ejemplo.py` incluye comandos para inspeccionar y limpiar el registro de correos procesados, útil durante pruebas o para forzar el reprocesamiento de un correo.
+
+### Listar los últimos procesados
+
+```bash
+python3 bot_finanzas_ejemplo.py processed           # últimos 10 (por defecto)
+python3 bot_finanzas_ejemplo.py processed --limit 5
+```
+
+Muestra una tabla `ID | processed_at` ordenada del más reciente al más antiguo.
+
+### Eliminar un ID para reprocesarlo
+
+```bash
+python3 bot_finanzas_ejemplo.py unprocess 19b7fad473750518
+python3 bot_finanzas_ejemplo.py unprocess 19b7fad473750518 19b7c6be70ba46e5
+```
+
+Elimina el documento de Firestore. La próxima vez que corra el cron, ese correo volverá a procesarse si sigue etiquetado en Gmail.
 
 ## Notas importantes
 
