@@ -12,7 +12,7 @@ def conectar_db():
         firebase_admin.initialize_app(cred)
     return firestore.client()
 
-def mejorar_transaccion_con_historial(db, doc_id, transaccion, model_name="llama3"):
+def mejorar_transaccion_con_historial(db, doc_id, transaccion, model_name="lfm2:24b"):
     """Mejora el título, subcategoría y contexto de una transacción usando historial y Ollama."""
     try:
         import ollama
@@ -54,12 +54,9 @@ def mejorar_transaccion_con_historial(db, doc_id, transaccion, model_name="llama
         if count >= 10:
             break
         tx = doc.to_dict()
-        h_title = tx.get('title', '')
         h_sub = tx.get('subcategory', '')
         h_ctx = tx.get('context', 'personal')
-        historial_str += f"- Título: '{h_title}'"
-        if h_sub:
-            historial_str += f" | subcategoría: '{h_sub}'"
+        historial_str += f"- subcategoría: '{h_sub}'"
         historial_str += f" | contexto: '{h_ctx}'\n"
         count += 1
         
@@ -80,14 +77,12 @@ Para la transacción actual:
 - Contexto actual: '{current_context}'
 
 Instrucciones:
-1. Mejorar el título ('title'): debe ser lo más parecido posible a títulos del historial. No inventes nombres nuevos.
-2. Elegir una subcategoría ('subcategory') de la lista proporcionada. Si no aplica ninguna o la lista está vacía, devuelve un string vacío "".
-3. Determinar el contexto ('context'): 'personal' para gastos personales, 'business' para gastos de negocio/empresa. Usa el historial como referencia.
+1. Elegir una subcategoría ('subcategory') de la lista proporcionada. Si no aplica ninguna o la lista está vacía, devuelve un string vacío "".
+2. Elige un contexto ('context') de la lista proporcionada basado en el titulo, mensaje y el historial.
 
 Devuelve ÚNICAMENTE un JSON válido sin texto adicional, sin markdown y sin explicaciones:
 {{
   "subcategory": "",
-  "title": "",
   "context": ""
 }}
 """
@@ -108,7 +103,6 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional, sin markdown y sin exp
         datos_mejorados = json.loads(contenido.strip())
         
         new_sub = datos_mejorados.get('subcategory', '')
-        new_title = datos_mejorados.get('title', title)
         new_context = datos_mejorados.get('context', current_context)
         
         # Validar subcategoría inventada
@@ -124,8 +118,6 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional, sin markdown y sin exp
         updates = {}
         if new_sub:
             updates['subcategory'] = new_sub
-        if new_title and new_title != title:
-            updates['title'] = new_title
         if new_context and new_context != current_context:
             updates['context'] = new_context
             

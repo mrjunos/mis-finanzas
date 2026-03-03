@@ -114,7 +114,7 @@ def extract_email_body(payload):
                 
     return text_content.strip()
 
-def procesar_texto_con_ia(texto, model_name="llama3"):
+def procesar_texto_con_ia(texto, model_name="lfm2:24b"):
     """Procesar texto libre con IA local usando Ollama."""
     print("🧠 Contactando a Firebase para obtener contexto...")
     db = conectar_db()
@@ -145,6 +145,7 @@ Reglas para los campos:
 - card: elige la opción correcta de {cuentas} según la data del correo.
 - context: usa 'personal' por defecto.
 - date: extrae la fecha EN LA QUE OCURRIÓ LA TRANSACCIÓN directamente desde el cuerpo del texto. Debe estar estrictamente en formato "YYYY-MM-DD".
+- comments: un mensaje breve descriptivo que resuma la transacción basada en el correo.
 
 Texto del correo:
 "{texto}"
@@ -158,7 +159,8 @@ Solo debes imprimir el código JSON directo, sin explicación ni markdown. Forma
   "category": "",
   "card": "",
   "context": "",
-  "date": ""
+  "date": "",
+  "comments": ""
 }}
 
 Si la transacción no fue exitosa:
@@ -188,7 +190,7 @@ Si la transacción no fue exitosa:
         print(f"\n❌ Error analizando o interpretando respuesta de IA: {e}")
         return None
 
-def registrar_transaccion(datos_ia, fallback_date, model_name="llama3"):
+def registrar_transaccion(datos_ia, fallback_date, model_name="lfm2:24b"):
     """Guardar la transacción extraída por la IA en Firestore."""
     from utils import mejorar_transaccion_con_historial
     db = conectar_db()
@@ -229,7 +231,7 @@ def registrar_transaccion(datos_ia, fallback_date, model_name="llama3"):
         "title": datos_ia.get('title', 'Sin concepto especificado'),
         "category": category,
         "card": datos_ia.get('card', 'general'),
-        "comments": "Importado automáticamente desde Gmail via IA",
+        "comments": datos_ia.get('comments', "Importado automáticamente desde Gmail via IA"),
         "context": datos_ia.get('context', 'personal'),
         "date": tx_date
     }
@@ -265,7 +267,7 @@ def mark_as_processed(service, msg_id, label_id_to_remove):
 def main():
     parser = argparse.ArgumentParser(description="Automatización de Gmail a Firebase con LLM Local")
     parser.add_argument('--label', default=DEFAULT_LABEL, help=f"Nombre de la etiqueta en Gmail (por defecto: '{DEFAULT_LABEL}')")
-    parser.add_argument('--model', default='llama3', help="Modelo de LLM a usar (por defecto: llama3)")
+    parser.add_argument('--model', default='lfm2:24b', help="Modelo de LLM a usar (por defecto: lfm2:24b)")
     args = parser.parse_args()
 
     # --- Lock file: evitar ejecuciones simultáneas ---

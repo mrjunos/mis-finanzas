@@ -70,7 +70,7 @@ Solo debes imprimir el código JSON directo, sin explicación ni markdown. Forma
     print("\n🧠 Analizando texto con IA local (Ollama)...")
     try:
         # NOTA: Cambia 'llama3' a 'phi3' según el modelo que descargues
-        respuesta = ollama.chat(model='llama3', messages=[
+        respuesta = ollama.chat(model='lfm2:24b', messages=[
             {'role': 'system', 'content': 'Solo respondes con formato JSON válido.'},
             {'role': 'user', 'content': prompt}
         ])
@@ -92,7 +92,7 @@ Solo debes imprimir el código JSON directo, sin explicación ni markdown. Forma
         return None
     except Exception as e:
         print(f"\n❌ Error al comunicarse con Ollama: {e}")
-        print("¿Tienes Ollama abierto y descargaste el modelo ejecutando 'ollama run llama3' o 'ollama run phi3' en la terminal?")
+        print("¿Tienes Ollama abierto y descargaste el modelo ejecutando 'ollama run lfm2:24b' en la terminal?")
         return None
 
 def registrar_transaccion(args):
