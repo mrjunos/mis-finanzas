@@ -35,3 +35,4 @@ gmail_sync.lock
 __pycache__/
 *.pyc
 .gh-config/
+processed_emails.txt
