@@ -1,151 +1,107 @@
-# Gmail → Firebase Sync — Cron Setup
+# Gmail → Firebase Sync — Setup
 
-This cron job runs `gmail_finanzas_sync.py` every 2 minutes to automatically import bank transactions from Gmail into Firebase, using a **local LLM (Ollama)** to parse unstructured email content into structured financial data — no external AI API required.
+The sync (`gmail_finanzas_sync.py`) runs on a **GitHub Actions scheduled workflow** every ~10 minutes. It imports bank transactions from Gmail into Firestore, using the **Google Gemini API** to parse unstructured email content into structured financial data.
+
+There is no local machine or cron involved — once set up, it runs entirely on GitHub's infrastructure.
 
 ---
 
 ## How it works
 
-1. Polls Gmail for emails labeled as bank transactions
-2. Passes the raw email body to a local Ollama model
-3. The model extracts: amount, merchant, date, transaction type
-4. Saves the structured record to Firestore
-5. Marks the Gmail message ID as processed (deduplication)
+1. The `Gmail Finance Sync` workflow (`.github/workflows/gmail_sync.yml`) triggers every ~10 minutes
+2. It polls Gmail for emails labeled `Bancos/PendingBot`
+3. Each email body is sent to Gemini (`gemini-3.1-flash-lite`), which returns a structured transaction
+4. The transaction is saved to the `finance_transactions` Firestore collection
+5. The Gmail label is removed and the message ID is recorded in `processed_gmail_ids`
+
+State lives entirely in Firestore — the workflow itself is stateless:
+
+| Firestore path | Purpose |
+|----------------|---------|
+| `gmail_auth/token` | The Gmail OAuth token, auto-refreshed on each run |
+| `processed_gmail_ids/{id}` | One doc per processed email, for deduplication |
+
+Both are blocked from client access by `firestore.rules`; only the backend Admin SDK can read them.
 
 ---
 
 ## Prerequisites
 
-- **Python 3.14** via Homebrew (`/opt/homebrew/bin/python3`)
-- **Ollama** running locally with a model (e.g. `mistral-nemo`, `llama3`)
-- A **Google Cloud project** with the Gmail API enabled
-- A **Firebase project** with Firestore enabled
+- A **Google Cloud project** with the Gmail API enabled and an OAuth 2.0 Client ID (Desktop App)
+- The OAuth consent screen **published to "In production"** — see the warning below
+- A **Gemini API key** — [Google AI Studio](https://aistudio.google.com/apikey)
+- A **Firebase project** with Firestore enabled, and an Admin SDK service account key
+- The [`gh` CLI](https://cli.github.com/) authenticated, and the [Firebase CLI](https://firebase.google.com/docs/cli)
+
+> **⚠️ The OAuth consent screen must be "In production".** While it is in "Testing" status, Google expires refresh tokens after 7 days, which silently breaks the sync. Publish the app: Google Cloud Console → APIs & Services → OAuth consent screen → **Publish app**. An "unverified app" warning during the consent flow is expected and harmless for personal use.
 
 ---
 
-## Setup (new machine)
+## One-time setup
 
-### 1. Install Python 3.14
+### 1. Configure GitHub secrets
 
-```bash
-brew install python@3.14
-/opt/homebrew/bin/python3 --version   # should show Python 3.14.x
-```
-
-### 2. Clone the repository
+From the repo root, with `credentials.json` and `firebase-adminsdk-*.json` present locally:
 
 ```bash
-git clone <repo-url> ~/Documents/Finanzas
-cd ~/Documents/Finanzas
+gh secret set GMAIL_CREDENTIALS_JSON < credentials.json
+gh secret set FIREBASE_ADMIN_SDK_JSON < firebase-adminsdk-*.json
+gh secret set GEMINI_API_KEY        # paste the key when prompted
 ```
 
-### 3. Install dependencies
+| Secret | Used for |
+|--------|----------|
+| `GEMINI_API_KEY` | Gemini API authentication |
+| `FIREBASE_ADMIN_SDK_JSON` | Firestore access via the Admin SDK |
+| `GMAIL_CREDENTIALS_JSON` | OAuth client config — kept as a backup; not required at runtime |
+
+### 2. Seed the Gmail token into Firestore
+
+`bootstrap_token.py` writes the OAuth token to `gmail_auth/token`. Run it once locally; if no valid token exists it opens a browser to authenticate:
 
 ```bash
-/opt/homebrew/bin/pip3 install -r requirements.txt
+pip install -r requirements.txt
+python3 bootstrap_token.py
 ```
 
-### 4. Add secret files
+It connects to Firestore via the local `firebase-adminsdk-*.json`. Re-run it any time the token is revoked or expired.
 
-Two files are required but not committed (listed in `.gitignore`):
-
-| File | Where to get it |
-|------|----------------|
-| `credentials.json` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID (Desktop App, Gmail API enabled) → Download JSON |
-| `firebase-adminsdk-*.json` | Firebase Console → Project Settings → Service Accounts → Generate new private key |
-
-Place both files in the project root (`~/Documents/Finanzas/`).
-
-### 5. First run — authorize Gmail access
-
-Run the script manually once to complete the OAuth flow:
+### 3. Deploy the Firestore security rules
 
 ```bash
-cd ~/Documents/Finanzas
-/opt/homebrew/bin/python3 gmail_finanzas_sync.py --model mistral-nemo
+firebase deploy --only firestore:rules
 ```
-
-A browser window will open for Gmail authorization. This generates `token.json` locally — subsequent runs (including the cron) use this token silently.
 
 ---
 
-## Install the cron job
+## Running it
 
-1. Open the crontab editor:
-   ```bash
-   crontab -e
-   ```
+- **Automatic:** the workflow runs every ~10 minutes once `gmail_sync.yml` is on the `main` branch.
+- **Manual:** GitHub → Actions → *Gmail Finance Sync* → *Run workflow*, or:
+  ```bash
+  gh workflow run gmail_sync.yml
+  ```
 
-2. Add this line (replace `YOUR_USERNAME`):
-   ```
-   */2 * * * * cd /Users/YOUR_USERNAME/Documents/Finanzas && /opt/homebrew/bin/python3 gmail_finanzas_sync.py --model mistral-nemo >> /Users/YOUR_USERNAME/Documents/Finanzas/cron_sync.log 2>&1
-   ```
+> GitHub may delay scheduled runs by several minutes under load, and disables scheduled workflows after 60 days of repo inactivity.
 
-3. Save and close (`:wq` in vim, `Ctrl+X` in nano).
+### Local test run
 
-4. Verify it was registered:
-   ```bash
-   crontab -l
-   ```
-
----
-
-## Deduplication
-
-Each processed Gmail message ID is recorded in a Firestore collection:
-
+```bash
+GEMINI_API_KEY=... FIREBASE_ADMIN_SDK_JSON="$(cat firebase-adminsdk-*.json)" python3 gmail_finanzas_sync.py
 ```
-processed_gmail_ids/{message_id}
-  └── processed_at: "2026-03-03T20:21:49.737014"  (ISO UTC)
-```
-
-This makes the sync stateless across machines — if you run the cron from multiple devices, each message is only imported once.
 
 ---
 
 ## Debugging
 
-### View logs in real time
-
 ```bash
-tail -f ~/Documents/Finanzas/cron_sync.log
+gh run list --workflow=gmail_sync.yml      # recent runs
+gh run view <run-id> --log                 # full log of a run
+gh run view <run-id> --log-failed          # only the failed steps
 ```
 
-### Inspect processed messages
+To reprocess an email: delete its doc from the `processed_gmail_ids` collection and re-apply the `Bancos/PendingBot` label in Gmail.
 
-```bash
-/opt/homebrew/bin/python3 bot_finanzas_ejemplo.py processed           # last 10 (default)
-/opt/homebrew/bin/python3 bot_finanzas_ejemplo.py processed --limit 5
-```
+### Common failure: `invalid_grant`
 
-### Re-process a message
-
-```bash
-/opt/homebrew/bin/python3 bot_finanzas_ejemplo.py unprocess 19b7fad473750518
-```
-
-Removes the Firestore record so the next cron run picks it up again.
-
----
-
-## Notes
-
-- **`--model` flag**: swap the Ollama model as needed. Tested with `mistral-nemo`, `llama3`, `gemma2`.
-- **Lock file**: the script creates `gmail_sync.lock` on start and removes it on exit. If a previous run is still active, the new instance exits immediately — no duplicate writes.
-- **macOS permissions**: if the cron silently fails, check System Settings → Privacy & Security → Full Disk Access and add `/usr/sbin/cron`.
-- **Dependabot**: configured in `.github/dependabot.yml` to check `requirements.txt` for updates every Monday and open PRs automatically.
-
----
-
-## Remove the cron job
-
-```bash
-crontab -e
-# Delete the line, save and close
-```
-
-To remove all cron jobs at once:
-
-```bash
-crontab -r
-```
+The Gmail OAuth token was revoked or expired. Re-run `python3 bootstrap_token.py` — it re-authenticates via the browser — then re-run the workflow. If it recurs, confirm the OAuth consent screen is "In production" (see Prerequisites).

@@ -1,8 +1,8 @@
 # Mis Finanzas 💸
 
-Personal finance management app with an AI-powered transaction pipeline. Bank notification emails are automatically parsed, analyzed by a local LLM, and registered into a Firebase database — no manual data entry, no external AI APIs.
+Personal finance management app with an AI-powered transaction pipeline. Bank notification emails are automatically parsed, analyzed by Gemini, and registered into a Firebase database — no manual data entry.
 
-![Stack](https://img.shields.io/badge/React_19-Vite-blue) ![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange) ![Ollama](https://img.shields.io/badge/LLM-Ollama_local-green) ![Python](https://img.shields.io/badge/Python-3.14-blue)
+![Stack](https://img.shields.io/badge/React_19-Vite-blue) ![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange) ![Gemini](https://img.shields.io/badge/AI-Gemini_Flash-green) ![Python](https://img.shields.io/badge/Python-3.12-blue)
 
 ---
 
@@ -13,22 +13,22 @@ Gmail (bank emails)
       ↓  [Gmail API + label filter]
 Email Parser
       ↓  [BeautifulSoup]
-Local LLM (Ollama)
+Gemini (gemini-3.1-flash-lite)
       ↓  [Structured JSON extraction]
 Firestore
       ↓
 React Dashboard
 ```
 
-A cron job runs every 2 minutes and processes any email tagged `Bancos/PendingBot` in Gmail:
+A GitHub Actions workflow runs every ~10 minutes and processes any email tagged `Bancos/PendingBot` in Gmail:
 
-1. **Fetches** emails via Gmail API
+1. **Fetches** emails via the Gmail API
 2. **Parses** the raw HTML body with BeautifulSoup
-3. **Sends** the text to a local Ollama model (llama3, mistral-nemo, etc.) which extracts structured transaction data
+3. **Sends** the text to Gemini, which extracts a structured transaction (type, amount, category, subcategory, context, date, ...) in a single call
 4. **Writes** the result to Firestore
-5. **Marks** the email as processed (stored in `processed_gmail_ids` Firestore collection for cross-device deduplication)
+5. **Removes** the Gmail label and records the message ID in the `processed_gmail_ids` Firestore collection
 
-Everything runs locally — no transaction data is sent to external APIs.
+The pipeline is fully serverless — it runs on GitHub Actions, so no local machine is needed.
 
 ---
 
@@ -38,9 +38,9 @@ Everything runs locally — no transaction data is sent to external APIs.
 |-------|-----------|
 | Frontend | React 19, Vite, Tailwind CSS |
 | Auth & DB | Firebase Auth + Firestore |
-| AI / LLM | Ollama (local inference) |
-| Email pipeline | Python 3.14, Gmail API, BeautifulSoup |
-| Automation | macOS cron |
+| AI / LLM | Google Gemini API (`gemini-3.1-flash-lite`) |
+| Email pipeline | Python 3.12, Gmail API, BeautifulSoup |
+| Automation | GitHub Actions (scheduled workflow, every ~10 min) |
 | CI/CD | GitHub Actions (deploy to Firebase Hosting on merge to `main`) |
 
 ---
@@ -51,35 +51,32 @@ Everything runs locally — no transaction data is sent to external APIs.
 - **Multi-context view** — personal, business, and unified finance tracking
 - **Budgets (Presupuestos)** — set and track spending limits by category
 - **Insights** — spending patterns and cash flow overview
-- **Local AI** — LLM runs on your machine, your data never leaves
-- **Cross-device deduplication** — processed email IDs stored in Firestore, not local files
+- **Serverless pipeline** — runs on GitHub Actions, no laptop required
+- **Cross-run deduplication** — processed email IDs stored in Firestore
 
 ---
 
 ## Setup
 
-> **Full step-by-step setup** (cron config, credentials, first run): see [`SETUP_CRON.md`](./SETUP_CRON.md)
+> **Full step-by-step setup** (GitHub secrets, OAuth token, Firestore rules): see [`SETUP_CRON.md`](./SETUP_CRON.md)
 
-### Quick start
+### Frontend — quick start
 
-**Prerequisites:** Node.js, Python 3.14, [Ollama](https://ollama.ai) running locally with at least one model pulled (e.g. `ollama pull mistral-nemo`)
+**Prerequisites:** Node.js
 
 ```bash
-# 1. Install frontend dependencies
 npm install
-
-# 2. Install Python dependencies
-pip install -r requirements.txt
-
-# 3. Add credentials (not in repo — see SETUP_CRON.md)
-# - credentials.json       → Google OAuth 2.0 (Gmail API)
-# - firebase-adminsdk-*.json → Firebase service account
-
-# 4. First run (authorizes Gmail and generates token.json)
-python3 gmail_finanzas_sync.py --model mistral-nemo
-
-# 5. Start the frontend
 npm run dev
+```
+
+### Email pipeline
+
+The sync runs automatically on GitHub Actions; see [`SETUP_CRON.md`](./SETUP_CRON.md) for the one-time setup. To run it locally for testing:
+
+```bash
+pip install -r requirements.txt
+# requires GEMINI_API_KEY and FIREBASE_ADMIN_SDK_JSON environment variables
+python3 gmail_finanzas_sync.py
 ```
 
 ---
@@ -103,9 +100,11 @@ All significant changes must go through a PR — no direct pushes to `main`.
 │   ├── components/           # Header, Sidebar, Transactions, Presupuestos, Insights
 │   ├── context/              # AuthContext, FinanceContext
 │   └── firebase.js           # Firebase config
-├── gmail_finanzas_sync.py    # Main AI pipeline (Gmail → Ollama → Firestore)
-├── utils.py                  # Shared Firebase connection utilities
-├── bot_finanzas_ejemplo.py   # CLI tool for inspecting/reprocessing emails
+├── gmail_finanzas_sync.py    # AI pipeline (Gmail → Gemini → Firestore)
+├── utils.py                  # Shared Firestore connection helper
+├── bootstrap_token.py        # One-time: seed/refresh the Gmail OAuth token in Firestore
+├── bot_finanzas_ejemplo.py   # Local CLI for manual transaction entry
 ├── requirements.txt          # Python dependencies
-└── SETUP_CRON.md             # Full cron setup and operations guide
+├── .github/workflows/        # gmail_sync.yml (sync cron) + deploy.yml (hosting)
+└── SETUP_CRON.md             # Full pipeline setup and operations guide
 ```
