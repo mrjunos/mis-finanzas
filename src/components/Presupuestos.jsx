@@ -6,12 +6,12 @@ import { format, subMonths, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatCurrency } from '../utils/format';
 import {
-  Icon, Card, Pill, IconTile, ProgressBar, Eyebrow, SectionHeader,
+  Icon, Card, Pill, IconTile, IconBtn, ProgressBar, Eyebrow, SectionHeader,
 } from './ds/Primitives';
 
 const HUE_CYCLE = ['clay', 'olive', 'amber', 'plum', 'ink'];
 
-export default function Presupuestos({ currentContext }) {
+export default function Presupuestos({ currentContext, onNavigate }) {
   const { budgets, fetchBudgetConfig, saveBudgetConfig, goals, transactions, appConfig } = useFinance();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
@@ -277,13 +277,13 @@ export default function Presupuestos({ currentContext }) {
                   return (
                     <div
                       key={i}
-                      onClick={() => { setEditingCategory(localCategories[i]); setIsPresupuestoModalOpen(true); }}
+                      onClick={() => onNavigate && onNavigate('categoria', { category: cat.nombre })}
                       style={{
                         padding: '12px 0', cursor: 'pointer',
                         borderBottom: i < enrichedCategories.length - 1 ? '1px solid var(--border-default)' : 'none',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                         <IconTile icon={catIconMap[cat.nombre] || 'category'} hue={HUE_CYCLE[i % HUE_CYCLE.length]} size={34} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -297,6 +297,11 @@ export default function Presupuestos({ currentContext }) {
                           : tempoDelta > 0.1 ? <Pill variant="warning" icon="trending_up">Adelantado</Pill>
                           : tempoDelta < -0.15 ? <Pill variant="success">Holgado</Pill>
                           : <Pill variant="neutral">En ritmo</Pill>}
+                        <IconBtn
+                          icon="tune" tone="sunken" size={30}
+                          title="Editar presupuesto"
+                          onClick={(e) => { e.stopPropagation(); setEditingCategory(localCategories[i]); setIsPresupuestoModalOpen(true); }}
+                        />
                       </div>
                       {/* Bar with tempo marker */}
                       <div style={{ position: 'relative' }}>

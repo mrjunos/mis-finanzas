@@ -34,10 +34,8 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     });
   }, [appConfig]);
 
-  const mode = (editingTransaction?.type === 'transfer' || editingTransaction?.isTransfer)
-    ? 'transfer' : (editingTransaction ? 'transaction' : initialMode);
-
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [mode, setMode] = useState(initialMode === 'transfer' ? 'transfer' : 'transaction');
   const [formData, setFormData] = useState({
     title: '', amount: '', type: 'debit', context: 'personal',
     category: allCategories?.[0]?.name || 'general', subcategory: '',
@@ -98,7 +96,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
       });
     } else {
       setFormData({
-        title: mode === 'transfer' ? 'Transferencia' : '',
+        title: '',
         amount: '', type: 'debit', context: 'personal',
         category: allCategories?.[0]?.name || 'general', subcategory: '',
         currency: appConfig?.currencies?.[0] || 'USD',
@@ -107,7 +105,15 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
         destinationCard: appConfig?.accounts?.[0] || '',
       });
     }
-  }, [editingTransaction, appConfig, allCategories, mode, isOpen]);
+  }, [editingTransaction, appConfig, allCategories, isOpen]);
+
+  // Reset mode whenever the modal opens (transfer when editing a transfer)
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (editingTransaction?.type === 'transfer' || editingTransaction?.isTransfer) setMode('transfer');
+    else if (editingTransaction) setMode('transaction');
+    else setMode(initialMode === 'transfer' ? 'transfer' : 'transaction');
+  }, [isOpen, editingTransaction, initialMode]);
 
   const currentSubcategories = useMemo(() => {
     const cat = filteredCategories.find(c => c.name === formData.category);
@@ -227,7 +233,26 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
             }}>
 
               {/* Type selector */}
-              {mode === 'transaction' && (
+              {isNew ? (
+                <Segmented
+                  value={mode === 'transfer' ? 'transfer' : formData.type}
+                  onChange={v => {
+                    if (v === 'transfer') {
+                      setMode('transfer');
+                      setFormData(prev => (prev.title ? prev : { ...prev, title: 'Transferencia' }));
+                    } else {
+                      setMode('transaction');
+                      set('type', v);
+                    }
+                  }}
+                  size="md"
+                  options={[
+                    { value: 'debit',     label: 'Gasto' },
+                    { value: 'credit',    label: 'Ingreso' },
+                    { value: 'transfer',  label: 'Transferencia' },
+                  ]}
+                />
+              ) : mode === 'transaction' ? (
                 <Segmented
                   value={formData.type}
                   onChange={v => set('type', v)}
@@ -237,7 +262,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
                     { value: 'credit', label: 'Ingreso' },
                   ]}
                 />
-              )}
+              ) : null}
 
               {/* Amount card */}
               <div style={{

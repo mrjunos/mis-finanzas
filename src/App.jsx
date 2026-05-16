@@ -139,15 +139,13 @@ function AppContent() {
           {/* Sticky glass header — hidden on full-bleed detail views */}
           {!isDetailView && <Header currentContext={context} onContextChange={setContext} />}
 
-          {/* Scrollable view content */}
+          {/* Scrollable view content — generous bottom pad clears the mobile tab bar + FAB */}
           <main style={{
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            // Mobile: pad bottom for tab bar; desktop: no padding
-            paddingBottom: 'env(safe-area-inset-bottom)',
           }}
-            className="pb-24 md:pb-6"
+            className="pb-28 md:pb-8"
           >
             {currentView === 'insights'      && <Insights currentContext={context} onNavigate={navigate} onAddTransaction={openAddTransaction} />}
             {currentView === 'transactions'  && <Transactions currentContext={context} onNavigate={navigate} />}
