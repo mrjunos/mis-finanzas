@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "brewbooks-mvp"
+  },
+  "targets": {
+    "brewbooks-mvp": {
+      "hosting": {
+        "finanzas": [
+          "mis-finanzas-jj"
+        ],
+        "brewbooks": [
+          "brewbooks-mvp"
+        ]
+      }
+    }
   }
 }
