@@ -23,6 +23,7 @@ export default function MetaModal({ isOpen, onClose, currentContext, editingMeta
 
     useEffect(() => {
         if (editingMeta) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 nombre: editingMeta.nombre || '',
                 objetivo: editingMeta.objetivo || '',

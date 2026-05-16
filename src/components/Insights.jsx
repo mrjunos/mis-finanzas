@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { formatCurrency, formatNumber } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import TransactionModal from './TransactionModal';
 import ConfirmModal from './ConfirmModal';
 import {

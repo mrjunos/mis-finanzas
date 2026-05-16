@@ -28,6 +28,7 @@ export default function PresupuestoModal({ isOpen, onClose, currentContext, curr
 
     useEffect(() => {
         if (editingCategory) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 nombre: editingCategory.nombre || '',
                 subcategory: editingCategory.subcategory || '',

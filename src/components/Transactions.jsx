@@ -37,7 +37,7 @@ const filterInputStyle = {
 };
 
 export default function Transactions({ currentContext }) {
-  const { getTotals, deleteTransaction, appConfig } = useFinance();
+  const { getTotals, deleteTransaction } = useFinance();
   const { filteredTransactions } = useMemo(() => getTotals(currentContext), [getTotals, currentContext]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);

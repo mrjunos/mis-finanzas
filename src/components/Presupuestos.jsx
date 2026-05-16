@@ -158,9 +158,7 @@ export default function Presupuestos({ currentContext }) {
   // Personal / Business specific view
   const renderContextoEspecifico = () => {
     const disponible     = presupuestadoTotal - gastadoReal;
-    const porcentajeGlobal = presupuestadoTotal > 0 ? (gastadoReal / presupuestadoTotal) * 100 : 0;
     const moduleHue      = currentContext === 'business' ? 'var(--plum-400)' : 'var(--clay-500)';
-    const iconHue        = currentContext === 'business' ? 'plum' : 'clay';
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
