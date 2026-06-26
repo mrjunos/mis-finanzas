@@ -35,9 +35,6 @@ gmail_sync.lock
 .env
 .env.*
 
-# Helper local de pruebas de push (no se versiona)
-test_push.py
-
 # Python
 __pycache__/
 *.pyc

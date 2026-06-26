@@ -1,0 +1,28 @@
+name: Test Push Notification
+
+# Disparo manual desde la pestaña Actions de GitHub.
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: 'Borrar las transacciones de prueba en vez de enviar push'
+        type: boolean
+        default: false
+
+jobs:
+  test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install firebase-admin
+
+      - name: Send test push
+        run: python send_test_push.py ${{ inputs.cleanup && '--cleanup' || '' }}
+        env:
+          FIREBASE_ADMIN_SDK_JSON: ${{ secrets.FIREBASE_ADMIN_SDK_JSON }}
