@@ -366,9 +366,10 @@ def enviar_push_pending(db, tx_id, tx):
             'title': '🧾 Pendiente de revisión',
             'body': body,
         },
+        # Sin fcm_options.link: FCM exige URL absoluta HTTPS ahí, pero el deep
+        # link lo resuelve nuestro service worker desde data.url (relativo OK).
         webpush=messaging.WebpushConfig(
             headers={'Urgency': 'high'},
-            fcm_options=messaging.WebpushFCMOptions(link=url),
         ),
     )
 

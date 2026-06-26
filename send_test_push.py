@@ -42,9 +42,10 @@ def enviar_push_pending(db, tx_id, tx):
     message = messaging.MulticastMessage(
         tokens=tokens,
         data={'txId': str(tx_id), 'url': url, 'title': '🧾 Pendiente de revisión', 'body': body},
+        # Sin fcm_options.link (requiere URL absoluta HTTPS); el deep link lo
+        # resuelve el service worker desde data.url.
         webpush=messaging.WebpushConfig(
             headers={'Urgency': 'high'},
-            fcm_options=messaging.WebpushFCMOptions(link=url),
         ),
     )
     resp = messaging.send_each_for_multicast(message)
