@@ -31,6 +31,10 @@ gmail_sync.lock
 !firebase.json
 
 
+# Env (la VAPID public no es secreta, pero igual no se versiona)
+.env
+.env.*
+
 # Python
 __pycache__/
 *.pyc

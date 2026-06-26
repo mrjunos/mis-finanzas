@@ -30,6 +30,8 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+        env:
+          VITE_FCM_VAPID_KEY: ${{ secrets.VITE_FCM_VAPID_KEY }}
       - name: Deploy to mis-finanzas-jj
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
