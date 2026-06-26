@@ -631,7 +631,67 @@ const CategoryConfigSection = ({ appConfig, saving, updateAppConfig }) => {
     );
 };
 
-export default function Settings({ onNavigate }) {
+const NotificationsSection = ({ push }) => {
+    if (!push) return null;
+    const { supported, permission, enabled, busy, error, enable, disable } = push;
+
+    let statusText, hint;
+    if (!supported) {
+        statusText = 'No disponible en este navegador';
+        hint = 'En iPhone, añade la app a la pantalla de inicio y ábrela desde ahí para activarlas.';
+    } else if (permission === 'denied') {
+        statusText = 'Bloqueadas';
+        hint = 'Las bloqueaste antes. Habilítalas en los ajustes del navegador para este sitio.';
+    } else if (enabled) {
+        statusText = 'Activadas en este dispositivo';
+        hint = 'Recibirás un aviso cuando entre un movimiento pendiente de revisión.';
+    } else {
+        statusText = 'Desactivadas';
+        hint = 'Recibe un aviso cada vez que entra un movimiento pendiente de revisión.';
+    }
+    if (error === 'no-vapid') hint = 'Falta configurar la clave VAPID (VITE_FCM_VAPID_KEY) en el build.';
+    if (error === 'failed') hint = 'No se pudieron activar. Inténtalo de nuevo.';
+
+    const canToggle = supported && permission !== 'denied';
+
+    return (
+        <div style={{
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--r-2xl)',
+            padding: 20,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <Icon name="notifications" size={20} color="var(--clay-500)" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--fg-1)' }}>Notificaciones</h3>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>{statusText}</div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{hint}</div>
+                </div>
+                <button
+                    type="button"
+                    onClick={enabled ? disable : enable}
+                    disabled={!canToggle || busy}
+                    style={{
+                        flexShrink: 0, height: 38, padding: '0 16px', borderRadius: 9999, border: 'none',
+                        cursor: (!canToggle || busy) ? 'not-allowed' : 'pointer',
+                        background: enabled ? 'var(--bg-sunken)' : (!canToggle ? 'var(--bg-sunken)' : 'var(--ink-800)'),
+                        color: enabled ? 'var(--fg-2)' : (!canToggle ? 'var(--fg-4)' : '#fff'),
+                        fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 12,
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                >
+                    {busy ? 'Procesando…' : enabled ? 'Desactivar' : 'Activar'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default function Settings({ onNavigate, push }) {
     const { appConfig, updateAppConfig } = useFinance();
     const { currentUser, logout } = useAuth();
     const [saving, setSaving] = useState(false);
@@ -758,6 +818,10 @@ export default function Settings({ onNavigate }) {
                     updateAppConfig={updateAppConfig}
                 />
             </div>
+
+            {/* Notifications */}
+            <Eyebrow style={{ paddingLeft: 4, marginTop: 4 }}>Avisos</Eyebrow>
+            <NotificationsSection push={push} />
 
             {/* More */}
             <Eyebrow style={{ paddingLeft: 4, marginTop: 4 }}>Más</Eyebrow>

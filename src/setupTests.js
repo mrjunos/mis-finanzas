@@ -12,6 +12,10 @@ vi.mock('./firebase', () => ({
     db: {},
     auth: {},
     googleProvider: {},
+    VAPID_PUBLIC_KEY: undefined,
+    getMessagingIfSupported: vi.fn(() => Promise.resolve(null)),
+    getToken: vi.fn(),
+    onMessage: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('firebase/app', () => ({
@@ -43,6 +47,7 @@ vi.mock('firebase/firestore', () => ({
     },
     deleteDoc: vi.fn(),
     updateDoc: vi.fn(),
+    serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
     writeBatch: vi.fn(() => ({
         set: vi.fn(),
         commit: vi.fn().mockResolvedValue(undefined),

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
@@ -13,6 +15,7 @@ import TransaccionDetalle from './components/TransaccionDetalle';
 import Nutricion from './components/Nutricion';
 import TransactionModal from './components/TransactionModal';
 import { Icon } from './components/ds/Primitives';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Pushed views reached from within a screen (not bottom-nav destinations)
 const DETAIL_VIEWS = ['categoria', 'transaccion', 'nutricion'];
@@ -96,6 +99,66 @@ function AppContent() {
   const [isFABModalOpen, setIsFABModalOpen] = useState(false);
   const [fabModalMode, setFabModalMode] = useState('transaction');
   const [editingTx, setEditingTx] = useState(null);
+  // Deep-link entrante: ?editTx=<id> desde una notificación push.
+  const [pendingEditId, setPendingEditId] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('editTx');
+  });
+
+  // Aviso in-app cuando llega un push con la app en primer plano.
+  const [foregroundNotice, setForegroundNotice] = useState(null);
+
+  const openEditTransaction = useCallback((tx) => {
+    setEditingTx(tx);
+    setFabModalMode('transaction');
+    setIsFABModalOpen(true);
+  }, []);
+
+  const push = usePushNotifications(useCallback((payload) => {
+    const d = payload?.data || {};
+    setForegroundNotice({ txId: d.txId, title: d.title, body: d.body });
+  }, []));
+
+  // Resuelve el deep-link: trae la tx por id (getDoc directo, sin depender del
+  // timing de onSnapshot) y abre el modal. Espera a currentUser porque Firestore
+  // exige auth + whitelist; si el link se abre sin sesión, el param persiste
+  // hasta que el login con Google completa.
+  useEffect(() => {
+    if (!currentUser || !pendingEditId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'finance_transactions', pendingEditId));
+        if (!cancelled && snap.exists()) {
+          openEditTransaction({ id: snap.id, ...snap.data() });
+        }
+      } catch (e) {
+        console.error('No se pudo abrir la transacción del deep-link:', e);
+      } finally {
+        if (typeof window !== 'undefined') {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('editTx');
+          window.history.replaceState({}, '', u.pathname + u.search + u.hash);
+        }
+        if (!cancelled) setPendingEditId(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser, pendingEditId, openEditTransaction]);
+
+  // PWA ya abierta: el service worker pide abrir una tx vía postMessage al
+  // tocar la notificación, sin recargar la página.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (e) => {
+      if (e.data?.type === 'OPEN_EDIT_TX' && e.data.url) {
+        const id = new URL(e.data.url, window.location.origin).searchParams.get('editTx');
+        if (id) setPendingEditId(id);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, []);
 
   if (!currentUser) {
     return <Login />;
@@ -115,11 +178,6 @@ function AppContent() {
 
   const openAddTransaction = () => {
     setEditingTx(null);
-    setFabModalMode('transaction');
-    setIsFABModalOpen(true);
-  };
-  const openEditTransaction = (tx) => {
-    setEditingTx(tx);
     setFabModalMode('transaction');
     setIsFABModalOpen(true);
   };
@@ -150,7 +208,7 @@ function AppContent() {
             {currentView === 'insights'      && <Insights currentContext={context} onNavigate={navigate} onAddTransaction={openAddTransaction} />}
             {currentView === 'transactions'  && <Transactions currentContext={context} onNavigate={navigate} onEditTransaction={openEditTransaction} />}
             {currentView === 'presupuestos'  && <Presupuestos currentContext={context} onNavigate={navigate} />}
-            {currentView === 'settings'      && <Settings onNavigate={navigate} />}
+            {currentView === 'settings'      && <Settings onNavigate={navigate} push={push} />}
             {currentView === 'categoria'     && <CategoriaDetalle currentContext={context} categoryName={viewParams?.category} onBack={goBack} onNavigate={navigate} />}
             {currentView === 'transaccion'   && <TransaccionDetalle txId={viewParams?.txId} onBack={goBack} onEdit={openEditTransaction} />}
             {currentView === 'nutricion'     && <Nutricion onBack={goBack} />}
@@ -208,6 +266,61 @@ function AppContent() {
             onFab={openAddTransaction}
           />
         </div>
+
+        {/* Aviso in-app cuando llega un pendiente con la app abierta */}
+        {foregroundNotice && (
+          <div style={{
+            position: 'fixed', left: 12, right: 12, top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+            margin: '0 auto', maxWidth: 460, zIndex: 60,
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 16, boxShadow: 'var(--shadow-lg)',
+            padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: 'var(--clay-500)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="rate_review" size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--fg-1)' }}>
+                {foregroundNotice.title || 'Pendiente de revisión'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {foregroundNotice.body || 'Nuevo movimiento por revisar'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (foregroundNotice.txId) setPendingEditId(foregroundNotice.txId);
+                setForegroundNotice(null);
+              }}
+              style={{
+                flexShrink: 0, height: 34, padding: '0 14px', borderRadius: 9999,
+                border: 'none', cursor: 'pointer', background: 'var(--ink-800)', color: '#fff',
+                fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 12,
+              }}
+            >
+              Revisar
+            </button>
+            <button
+              type="button"
+              onClick={() => setForegroundNotice(null)}
+              aria-label="Cerrar"
+              style={{
+                flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+                border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--fg-3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        )}
 
         <TransactionModal
           isOpen={isFABModalOpen}

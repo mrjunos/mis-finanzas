@@ -15,7 +15,7 @@ from google import genai
 from google.genai import types
 
 # Firebase
-from firebase_admin import firestore
+from firebase_admin import firestore, messaging
 from utils import conectar_db
 
 # --- CONFIGURACIÓN ---
@@ -323,10 +323,65 @@ def registrar_transaccion(datos_ia, fallback_date, db, cat_tree):
     try:
         _, doc_ref = db.collection('finance_transactions').add(nueva_transaccion)
         print(f"✅ Éxito: Registro guardado en Firebase (ID: {doc_ref.id})")
+        # El push es best-effort: nunca debe romper el sync.
+        try:
+            enviar_push_pending(db, doc_ref.id, nueva_transaccion)
+        except Exception as e:
+            print(f"⚠️ No se pudo enviar la notificación push (no crítico): {e}")
         return True
     except Exception as e:
         print(f"❌ Error al guardar en Firebase: {e}")
         return False
+
+
+def enviar_push_pending(db, tx_id, tx):
+    """Notifica por push (Web Push/FCM) que entró un movimiento pendiente.
+
+    Lee todos los tokens registrados por la app web en la colección
+    `fcm_tokens` (doc id == token) y envía un mensaje data-only para que el
+    service worker controle la presentación y el deep link `?editTx=<id>`.
+    Limpia los tokens que FCM reporta como inválidos.
+    """
+    tokens = [d.id for d in db.collection('fcm_tokens').stream()]
+    if not tokens:
+        print("ℹ️ No hay dispositivos suscritos a notificaciones. Se omite push.")
+        return
+
+    signo = '-' if tx.get('type') == 'debit' else '+'
+    try:
+        monto = f"{signo}{float(tx.get('amount', 0)):,.0f} {tx.get('currency', 'COP')}"
+    except (TypeError, ValueError):
+        monto = tx.get('currency', 'COP')
+    titulo = tx.get('title', 'Movimiento')
+    categoria = tx.get('category', '')
+    body = f"{monto} · {titulo}" + (f" · {categoria}" if categoria else "")
+    url = f"/?editTx={tx_id}"
+
+    message = messaging.MulticastMessage(
+        tokens=tokens,
+        # Data-only: el SW arma la notificación (evita duplicados en Chrome).
+        data={
+            'txId': str(tx_id),
+            'url': url,
+            'title': '🧾 Pendiente de revisión',
+            'body': body,
+        },
+        webpush=messaging.WebpushConfig(
+            headers={'Urgency': 'high'},
+            fcm_options=messaging.WebpushFCMOptions(link=url),
+        ),
+    )
+
+    response = messaging.send_each_for_multicast(message)
+    print(f"🔔 Push enviado: {response.success_count} ok, {response.failure_count} fallidos.")
+
+    for token, resp in zip(tokens, response.responses):
+        if resp.success:
+            continue
+        exc = resp.exception
+        if isinstance(exc, messaging.UnregisteredError) or 'not-registered' in str(getattr(exc, 'code', '')).lower():
+            db.collection('fcm_tokens').document(token).delete()
+            print(f"🧹 Token inválido eliminado: {token[:12]}…")
 
 
 def mark_as_processed(service, msg_id, label_id_to_remove):
