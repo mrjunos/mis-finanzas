@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import Header from './components/Header';
@@ -105,8 +105,12 @@ function AppContent() {
     return new URLSearchParams(window.location.search).get('editTx');
   });
 
-  // Aviso in-app cuando llega un push con la app en primer plano.
-  const [foregroundNotice, setForegroundNotice] = useState(null);
+  // Avisos in-app (stack) cuando llegan pushes con la app en primer plano.
+  const [foregroundNotices, setForegroundNotices] = useState([]);
+  const noticeIdRef = useRef(0);
+  const dismissNotice = useCallback((id) => {
+    setForegroundNotices((prev) => prev.filter((n) => n.id !== id));
+  }, []);
 
   const openEditTransaction = useCallback((tx) => {
     setEditingTx(tx);
@@ -116,7 +120,12 @@ function AppContent() {
 
   const push = usePushNotifications(useCallback((payload) => {
     const d = payload?.data || {};
-    setForegroundNotice({ txId: d.txId, title: d.title, body: d.body });
+    setForegroundNotices((prev) => {
+      // Si ya hay un aviso para esa misma tx, lo reemplaza (evita duplicados).
+      const filtered = d.txId ? prev.filter((n) => n.txId !== d.txId) : prev;
+      const next = [...filtered, { id: ++noticeIdRef.current, txId: d.txId, title: d.title, body: d.body }];
+      return next.slice(-4); // máximo 4 avisos visibles a la vez
+    });
   }, []));
 
   // Resuelve el deep-link: trae la tx por id (getDoc directo, sin depender del
@@ -267,58 +276,64 @@ function AppContent() {
           />
         </div>
 
-        {/* Aviso in-app cuando llega un pendiente con la app abierta */}
-        {foregroundNotice && (
+        {/* Stack de avisos in-app cuando llegan pushes con la app abierta */}
+        {foregroundNotices.length > 0 && (
           <div style={{
             position: 'fixed', left: 12, right: 12, top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
             margin: '0 auto', maxWidth: 460, zIndex: 60,
-            background: 'var(--bg-raised)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 16, boxShadow: 'var(--shadow-lg)',
-            padding: '12px 14px',
-            display: 'flex', alignItems: 'center', gap: 12,
+            display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-              background: 'var(--clay-500)', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="rate_review" size={20} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--fg-1)' }}>
-                {foregroundNotice.title || 'Pendiente de revisión'}
+            {foregroundNotices.map((notice) => (
+              <div key={notice.id} style={{
+                background: 'var(--bg-raised)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 16, boxShadow: 'var(--shadow-lg)',
+                padding: '12px 14px',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: 'var(--clay-500)', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="rate_review" size={20} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--fg-1)' }}>
+                    {notice.title || 'Pendiente de revisión'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {notice.body || 'Nuevo movimiento por revisar'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (notice.txId) setPendingEditId(notice.txId);
+                    dismissNotice(notice.id);
+                  }}
+                  style={{
+                    flexShrink: 0, height: 34, padding: '0 14px', borderRadius: 9999,
+                    border: 'none', cursor: 'pointer', background: 'var(--ink-800)', color: '#fff',
+                    fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 12,
+                  }}
+                >
+                  Revisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dismissNotice(notice.id)}
+                  aria-label="Cerrar"
+                  style={{
+                    flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+                    border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--fg-3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <Icon name="close" size={18} />
+                </button>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {foregroundNotice.body || 'Nuevo movimiento por revisar'}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (foregroundNotice.txId) setPendingEditId(foregroundNotice.txId);
-                setForegroundNotice(null);
-              }}
-              style={{
-                flexShrink: 0, height: 34, padding: '0 14px', borderRadius: 9999,
-                border: 'none', cursor: 'pointer', background: 'var(--ink-800)', color: '#fff',
-                fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 12,
-              }}
-            >
-              Revisar
-            </button>
-            <button
-              type="button"
-              onClick={() => setForegroundNotice(null)}
-              aria-label="Cerrar"
-              style={{
-                flexShrink: 0, width: 30, height: 30, borderRadius: 8,
-                border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--fg-3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Icon name="close" size={18} />
-            </button>
+            ))}
           </div>
         )}
 

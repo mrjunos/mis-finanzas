@@ -63,29 +63,51 @@ def cleanup(db):
     print(f"🧹 Eliminadas {n} transacciones de prueba.")
 
 
+def _parse_count():
+    """Lee --count N (o --count=N); por defecto 1. Acotado a 1..10."""
+    for i, a in enumerate(sys.argv):
+        val = None
+        if a == '--count' and i + 1 < len(sys.argv):
+            val = sys.argv[i + 1]
+        elif a.startswith('--count='):
+            val = a.split('=', 1)[1]
+        if val is not None:
+            try:
+                return max(1, min(10, int(val)))
+            except ValueError:
+                return 1
+    return 1
+
+
 def main():
     db = conectar_db()
     if '--cleanup' in sys.argv:
         cleanup(db)
         return
 
-    tx = {
-        "type": "debit",
-        "amount": 50000,
-        "currency": "COP",
-        "title": TEST_TITLE,
-        "category": "Mercado",
-        "subcategory": "",
-        "card": "general",
-        "comments": "Transacción de prueba — bórrala cuando termines (--cleanup)",
-        "context": "personal",
-        "date": datetime.date.today().isoformat(),
-        "status": "pending",
-    }
-    _, doc_ref = db.collection('finance_transactions').add(tx)
-    print(f"✅ Tx de prueba creada (ID: {doc_ref.id})")
-    enviar_push_pending(db, doc_ref.id, tx)
-    print("\n👉 Revisa tu dispositivo. Al tocar la notificación debe abrirse el modal de edición.")
+    count = _parse_count()
+    categorias = ["Mercado", "Transporte", "Restaurantes", "Servicios", "Salud"]
+    montos = [50000, 120000, 23500, 89900, 15000]
+
+    for i in range(count):
+        tx = {
+            "type": "debit",
+            "amount": montos[i % len(montos)],
+            "currency": "COP",
+            "title": TEST_TITLE,
+            "category": categorias[i % len(categorias)],
+            "subcategory": "",
+            "card": "general",
+            "comments": "Transacción de prueba — bórrala cuando termines (--cleanup)",
+            "context": "personal",
+            "date": datetime.date.today().isoformat(),
+            "status": "pending",
+        }
+        _, doc_ref = db.collection('finance_transactions').add(tx)
+        print(f"✅ Tx de prueba {i + 1}/{count} creada (ID: {doc_ref.id})")
+        enviar_push_pending(db, doc_ref.id, tx)
+
+    print(f"\n👉 Revisa tu dispositivo: deberían llegar {count} notificación(es), una por tx.")
     print("   Para limpiar: vuelve a correr el workflow con cleanup=true (o `--cleanup` local).")
 
 
