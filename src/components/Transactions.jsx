@@ -1,23 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, Suspense } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { format, startOfYear, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { formatCurrency, formatCompactNumber } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import ConfirmModal from './ConfirmModal';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
-} from 'recharts';
 import {
   Icon, Card, Pill, IconTile, Eyebrow, hueForCategory, hueColorVar
 } from './ds/Primitives';
 
-// Currency chart colors — warm palette
-const CURRENCY_COLORS = {
-  COP: '#C9582A',   // clay-500
-  USD: '#5E6738',   // olive-500
-  EUR: '#DCA63B',   // amber-300
-  DEFAULT: '#8A4848', // plum-400
-};
+const LazyBalanceChart = React.lazy(() => import('./BalanceChart'));
 
 // Small filter field wrapper
 const FilterField = ({ label, children }) => (
@@ -51,6 +42,7 @@ export default function Transactions({ currentContext, onNavigate, onEditTransac
   const [maxAmountFilter, setMaxAmountFilter]     = useState('');
   const [typeFilter, setTypeFilter]               = useState('');
   const [searchText, setSearchText]               = useState('');
+  const deferredSearch = useDeferredValue(searchText);
   const [noSubcategoryOnly, setNoSubcategoryOnly] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(false);
   const [pageSize, setPageSize]     = useState(20);
@@ -132,8 +124,8 @@ export default function Transactions({ currentContext, onNavigate, onEditTransac
       if (typeFilter === 'transfer') list = list.filter(t => t.type === 'transfer' || t.isTransfer);
       else list = list.filter(t => t.type === typeFilter && !t.isTransfer);
     }
-    if (searchText.trim()) {
-      const q = searchText.trim().toLowerCase();
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase();
       list = list.filter(t => (t.title || t.description || '').toLowerCase().includes(q) || (t.comments || '').toLowerCase().includes(q));
     }
     if (noSubcategoryOnly) list = list.filter(t => !t.subcategory);
@@ -141,9 +133,9 @@ export default function Transactions({ currentContext, onNavigate, onEditTransac
     // Orden por fecha+hora (sortAt); fallback a date para registros antiguos sin timestamp
     list.sort((a, b) => (b.sortAt || b.date).getTime() - (a.sortAt || a.date).getTime());
     return list;
-  }, [filteredTransactions, startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter, typeFilter, searchText, noSubcategoryOnly, pendingOnly]);
+  }, [filteredTransactions, startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter, typeFilter, deferredSearch, noSubcategoryOnly, pendingOnly]);
 
-  React.useEffect(() => { setCurrentPage(1); }, [startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter, typeFilter, searchText, noSubcategoryOnly, pendingOnly, pageSize]);
+  React.useEffect(() => { setCurrentPage(1); }, [startDate, endDate, categoryFilter, subcategoryFilter, accountFilter, minAmountFilter, maxAmountFilter, typeFilter, deferredSearch, noSubcategoryOnly, pendingOnly, pageSize]);
 
   const paginatedTransactions = useMemo(() => processedTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize), [processedTransactions, currentPage, pageSize]);
   const totalPages = Math.ceil(processedTransactions.length / pageSize) || 1;
@@ -212,12 +204,12 @@ export default function Transactions({ currentContext, onNavigate, onEditTransac
     setSearchText(''); setNoSubcategoryOnly(false); setPendingOnly(false);
   };
 
-  const txIcon = (tx) => {
+  const txIcon = useCallback((tx) => {
     if (tx.type === 'transfer' || tx.isTransfer) return 'swap_horiz';
     if (tx.type === 'credit') return 'trending_up';
     const map = { food: 'restaurant', software: 'code', services: 'home_repair_service', salud: 'medical_services', transporte: 'directions_car' };
     return map[tx.category] || 'payments';
-  };
+  }, []);
 
   // Hero derived values
   const monthDelta = monthInfo.prevTotal > 0
@@ -433,56 +425,18 @@ export default function Transactions({ currentContext, onNavigate, onEditTransac
         </div>
       </Card>
 
-      {/* Balance evolution chart */}
+      {/* Balance evolution chart — lazy loaded to keep initial bundle small */}
       {chartData.currencies.length > 0 && chartData.dataPoints.length > 1 && (
         <Card padding={16} style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div>
-              <Eyebrow>Evolución de saldo</Eyebrow>
-            </div>
-            {chartData.currencies.length > 1 && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                {chartData.currencies.map(cur => {
-                  const color = CURRENCY_COLORS[cur] || CURRENCY_COLORS.DEFAULT;
-                  const active = cur === selectedCurrency;
-                  return (
-                    <button
-                      key={cur}
-                      type="button"
-                      onClick={() => setSelectedCurrency(cur)}
-                      style={{
-                        padding: '4px 10px', borderRadius: 9999, border: `1.5px solid ${color}`,
-                        background: active ? color : 'transparent', color: active ? '#fff' : color,
-                        fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 11, cursor: 'pointer',
-                      }}
-                    >{cur}</button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div style={{ height: 200, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.dataPoints} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-                <XAxis dataKey="date" stroke="var(--fg-4)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--fg-4)" fontSize={11} axisLine={false} tickLine={false} tickFormatter={v => formatCompactNumber(v)} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, border: '1px solid var(--border-default)', background: 'var(--bg-raised)', boxShadow: 'var(--shadow-md)', fontFamily: 'var(--font-sans)' }}
-                  formatter={(val) => [formatCurrency(val, selectedCurrency || chartData.currencies[0]), `Balance`]}
-                  labelStyle={{ color: 'var(--fg-3)', fontWeight: 600, marginBottom: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey={selectedCurrency || chartData.currencies[0]}
-                  stroke={CURRENCY_COLORS[selectedCurrency] || CURRENCY_COLORS.DEFAULT}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 0, fill: CURRENCY_COLORS[selectedCurrency] || CURRENCY_COLORS.DEFAULT }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Eyebrow style={{ marginBottom: 12 }}>Evolución de saldo</Eyebrow>
+          <Suspense fallback={<div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-4)', fontSize: 13 }}>Cargando gráfico…</div>}>
+            <LazyBalanceChart
+              dataPoints={chartData.dataPoints}
+              currencies={chartData.currencies}
+              selectedCurrency={selectedCurrency}
+              onCurrencyChange={setSelectedCurrency}
+            />
+          </Suspense>
         </Card>
       )}
 

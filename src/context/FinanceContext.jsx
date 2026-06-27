@@ -144,7 +144,7 @@ export const FinanceProvider = ({ children }) => {
         }
     }, []);
 
-    const updateAppConfig = async (newConfig) => {
+    const updateAppConfig = useCallback(async (newConfig) => {
         try {
             const configRef = doc(db, 'finance_settings', 'default');
             await setDoc(configRef, newConfig);
@@ -153,11 +153,10 @@ export const FinanceProvider = ({ children }) => {
             console.error("Error updating config: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const addTransaction = async (data) => {
+    const addTransaction = useCallback(async (data) => {
         try {
-            // Default to today string if not provided
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -166,17 +165,17 @@ export const FinanceProvider = ({ children }) => {
 
             await addDoc(collection(db, 'finance_transactions'), {
                 date: defaultDateStr,
-                timestamp: Timestamp.now(), // momento de creación → orden por hora
-                status: 'reviewed', // manual entries are reviewed; overridable via data
+                timestamp: Timestamp.now(),
+                status: 'reviewed',
                 ...data,
             });
         } catch (error) {
             console.error("Error adding document: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const addTransfer = async (transferData) => {
+    const addTransfer = useCallback(async (transferData) => {
         try {
             const today = new Date();
             const year = today.getFullYear();
@@ -204,29 +203,25 @@ export const FinanceProvider = ({ children }) => {
             console.error("Error adding transfer: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const deleteTransaction = async (id) => {
+    const deleteTransaction = useCallback(async (id) => {
         try {
             await deleteDoc(doc(db, 'finance_transactions', id));
         } catch (error) {
             console.error("Error deleting document: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const updateTransaction = async (id, data) => {
+    const updateTransaction = useCallback(async (id, data) => {
         try {
-            await updateDoc(doc(db, 'finance_transactions', id), {
-                ...data,
-                // Do not overwrite date if it's already a Timestamp, unless updating the date specifically.
-                // Assuming data.date will be provided as a Timestamp if modified.
-            });
+            await updateDoc(doc(db, 'finance_transactions', id), { ...data });
         } catch (error) {
             console.error("Error updating document: ", error);
             throw error;
         }
-    };
+    }, []);
 
     // Memoize global balance calculations to avoid re-computing on every render/call
     const balances = useMemo(() => calculateBalances(transactions), [transactions]);
@@ -245,36 +240,36 @@ export const FinanceProvider = ({ children }) => {
     }, [transactions, balances]);
 
     // --- Metas / Goals Methods ---
-    const addGoal = async (data) => {
+    const addGoal = useCallback(async (data) => {
         try {
             await addDoc(collection(db, 'finance_goals'), data);
         } catch (error) {
             console.error("Error adding goal: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const updateGoal = async (id, data) => {
+    const updateGoal = useCallback(async (id, data) => {
         try {
             await updateDoc(doc(db, 'finance_goals', id), data);
         } catch (error) {
             console.error("Error updating goal: ", error);
             throw error;
         }
-    };
+    }, []);
 
-    const deleteGoal = async (id) => {
+    const deleteGoal = useCallback(async (id) => {
         try {
             await deleteDoc(doc(db, 'finance_goals', id));
         } catch (error) {
             console.error("Error deleting goal: ", error);
             throw error;
         }
-    };
+    }, []);
 
     // --- Presupuestos / Budgets Methods (Automatic Cloning) ---
     // Fetch budget for a specific month and context. If not found, attempts to clone the previous month.
-    const fetchBudgetConfig = async (monthStr, context) => {
+    const fetchBudgetConfig = useCallback(async (monthStr, context) => {
         try {
             const budgetId = `${monthStr}_${context}`;
             const budgetRef = doc(db, 'finance_budgets', budgetId);
@@ -315,9 +310,9 @@ export const FinanceProvider = ({ children }) => {
             console.error("Error in fetchBudgetConfig: ", error);
             return null;
         }
-    };
+    }, []);
 
-    const saveBudgetConfig = async (monthStr, context, newCategories) => {
+    const saveBudgetConfig = useCallback(async (monthStr, context, newCategories) => {
         try {
             const budgetId = `${monthStr}_${context}`;
             const budgetRef = doc(db, 'finance_budgets', budgetId);
@@ -334,10 +329,10 @@ export const FinanceProvider = ({ children }) => {
             console.error("Error saving budget config: ", error);
             throw error;
         }
-    };
+    }, []);
 
 
-    const value = {
+    const value = useMemo(() => ({
         transactions,
         budgets,
         goals,
@@ -353,8 +348,12 @@ export const FinanceProvider = ({ children }) => {
         updateGoal,
         deleteGoal,
         fetchBudgetConfig,
-        saveBudgetConfig
-    };
+        saveBudgetConfig,
+    }), [
+        transactions, budgets, goals, loading, getTotals, appConfig,
+        addTransaction, addTransfer, deleteTransaction, updateTransaction,
+        updateAppConfig, addGoal, updateGoal, deleteGoal, fetchBudgetConfig, saveBudgetConfig,
+    ]);
 
     return (
         <FinanceContext.Provider value={value}>

@@ -5,7 +5,7 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Login from './components/Login';
-import { FinanceProvider } from './context/FinanceContext';
+import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Transactions from './components/Transactions';
 import Presupuestos from './components/Presupuestos';
@@ -20,8 +20,56 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 // Pushed views reached from within a screen (not bottom-nav destinations)
 const DETAIL_VIEWS = ['categoria', 'transaccion', 'nutricion'];
 
+// Resolves a deep-link transaction ID using the in-memory cache first,
+// avoiding a Firestore round-trip when the app is already open and subscribed.
+function DeepLinkResolver({ currentUser, pendingEditId, setPendingEditId, openEditTransaction }) {
+  const { transactions, loading } = useFinance();
+
+  useEffect(() => {
+    if (!currentUser || !pendingEditId) return;
+
+    const cleanUrl = () => {
+      if (typeof window === 'undefined') return;
+      const u = new URL(window.location.href);
+      u.searchParams.delete('editTx');
+      window.history.replaceState({}, '', u.pathname + u.search + u.hash);
+    };
+
+    // Try the in-memory cache first — instant, no network
+    const cached = transactions.find(t => t.id === pendingEditId);
+    if (cached) {
+      openEditTransaction(cached);
+      setPendingEditId(null);
+      cleanUrl();
+      return;
+    }
+
+    // Wait while Firestore subscription is still loading its first batch
+    if (loading) return;
+
+    // Transactions loaded but this ID isn't there → one-shot getDoc fallback
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'finance_transactions', pendingEditId));
+        if (!cancelled && snap.exists()) {
+          openEditTransaction({ id: snap.id, ...snap.data() });
+        }
+      } catch (e) {
+        console.error('No se pudo abrir la transacción del deep-link:', e);
+      } finally {
+        cleanUrl();
+        if (!cancelled) setPendingEditId(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser, pendingEditId, transactions, loading, openEditTransaction, setPendingEditId]);
+
+  return null;
+}
+
 // Bottom tab bar — mobile only
-function TabBar({ active, onChange, onFab }) {
+const TabBar = React.memo(function TabBar({ active, onChange, onFab }) {
   const items = [
     { id: 'insights',     icon: 'insights',     label: 'Radiografía' },
     { id: 'transactions', icon: 'receipt_long', label: 'Movimientos' },
@@ -88,7 +136,7 @@ function TabBar({ active, onChange, onFab }) {
       })}
     </nav>
   );
-}
+});
 
 function AppContent() {
   const { currentUser } = useAuth();
@@ -128,33 +176,6 @@ function AppContent() {
     });
   }, []));
 
-  // Resuelve el deep-link: trae la tx por id (getDoc directo, sin depender del
-  // timing de onSnapshot) y abre el modal. Espera a currentUser porque Firestore
-  // exige auth + whitelist; si el link se abre sin sesión, el param persiste
-  // hasta que el login con Google completa.
-  useEffect(() => {
-    if (!currentUser || !pendingEditId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'finance_transactions', pendingEditId));
-        if (!cancelled && snap.exists()) {
-          openEditTransaction({ id: snap.id, ...snap.data() });
-        }
-      } catch (e) {
-        console.error('No se pudo abrir la transacción del deep-link:', e);
-      } finally {
-        if (typeof window !== 'undefined') {
-          const u = new URL(window.location.href);
-          u.searchParams.delete('editTx');
-          window.history.replaceState({}, '', u.pathname + u.search + u.hash);
-        }
-        if (!cancelled) setPendingEditId(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [currentUser, pendingEditId, openEditTransaction]);
-
   // PWA ya abierta: el service worker pide abrir una tx vía postMessage al
   // tocar la notificación, sin recargar la página.
   useEffect(() => {
@@ -193,6 +214,12 @@ function AppContent() {
 
   return (
     <FinanceProvider>
+      <DeepLinkResolver
+        currentUser={currentUser}
+        pendingEditId={pendingEditId}
+        setPendingEditId={setPendingEditId}
+        openEditTransaction={openEditTransaction}
+      />
       <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
 
         {/* Desktop sidebar rail — hidden on mobile */}

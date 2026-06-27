@@ -8,43 +8,47 @@ import React from 'react';
 // ---------------------------------------------------------------------------
 // Icon — Material Symbols Outlined wrapper
 // ---------------------------------------------------------------------------
-export const Icon = ({ name, size = 20, fill = false, color, style = {}, className = '' }) => (
-  <span
-    className={`material-symbols-outlined${fill ? ' filled' : ''} ${className}`}
-    style={{
-      fontSize: size,
-      fontVariationSettings: `'FILL' ${fill ? 1 : 0}, 'wght' ${fill ? 500 : 400}, 'GRAD' 0, 'opsz' 24`,
-      color: color || 'inherit',
-      lineHeight: 1,
-      flexShrink: 0,
-      ...style,
-    }}
-  >
-    {name}
-  </span>
-);
+export const Icon = React.memo(function Icon({ name, size = 20, fill = false, color, style = {}, className = '' }) {
+  return (
+    <span
+      className={`material-symbols-outlined${fill ? ' filled' : ''} ${className}`}
+      style={{
+        fontSize: size,
+        fontVariationSettings: `'FILL' ${fill ? 1 : 0}, 'wght' ${fill ? 500 : 400}, 'GRAD' 0, 'opsz' 24`,
+        color: color || 'inherit',
+        lineHeight: 1,
+        flexShrink: 0,
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Eyebrow — uppercase tracking label
 // ---------------------------------------------------------------------------
-export const Eyebrow = ({ children, color = 'var(--fg-3)', style = {} }) => (
-  <div style={{
-    fontSize: 10,
-    fontWeight: 800,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color,
-    lineHeight: 1,
-    ...style,
-  }}>
-    {children}
-  </div>
-);
+export const Eyebrow = React.memo(function Eyebrow({ children, color = 'var(--fg-3)', style = {} }) {
+  return (
+    <div style={{
+      fontSize: 10,
+      fontWeight: 800,
+      letterSpacing: '0.14em',
+      textTransform: 'uppercase',
+      color,
+      lineHeight: 1,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Card — three archetypes
 // ---------------------------------------------------------------------------
-export const Card = ({
+export const Card = React.memo(function Card({
   variant = 'floating',
   moduleHue,
   padding = 16,
@@ -52,7 +56,7 @@ export const Card = ({
   onClick,
   children,
   className = '',
-}) => {
+}) {
   const base = {
     borderRadius: 'var(--r-2xl)',
     padding,
@@ -76,12 +80,12 @@ export const Card = ({
       {children}
     </div>
   );
-};
+});
 
 // ---------------------------------------------------------------------------
 // Pill / chip
 // ---------------------------------------------------------------------------
-export const Pill = ({ children, variant = 'neutral', icon, onClick, style = {} }) => {
+export const Pill = React.memo(function Pill({ children, variant = 'neutral', icon, onClick, style = {} }) {
   const variants = {
     neutral:  { bg: 'var(--ink-50)',      fg: 'var(--fg-2)' },
     success:  { bg: 'var(--success-50)',  fg: 'var(--success-700)' },
@@ -111,7 +115,7 @@ export const Pill = ({ children, variant = 'neutral', icon, onClick, style = {} 
       {children}
     </span>
   );
-};
+});
 
 // ---------------------------------------------------------------------------
 // DeltaPill — trend indicator on KPIs
@@ -128,7 +132,7 @@ export const DeltaPill = ({ value, suffix = '%' }) => {
 // ---------------------------------------------------------------------------
 // IconTile — tinted square icon container
 // ---------------------------------------------------------------------------
-export const IconTile = ({ icon, hue = 'clay', size = 36 }) => {
+export const IconTile = React.memo(function IconTile({ icon, hue = 'clay', size = 36 }) {
   const palette = {
     clay:    { bg: 'var(--clay-50)',    fg: 'var(--clay-600)' },
     olive:   { bg: 'var(--olive-50)',   fg: 'var(--olive-600)' },
@@ -149,7 +153,7 @@ export const IconTile = ({ icon, hue = 'clay', size = 36 }) => {
       <Icon name={icon} size={Math.round(size * 0.52)} />
     </div>
   );
-};
+});
 
 // ---------------------------------------------------------------------------
 // SparkLine
