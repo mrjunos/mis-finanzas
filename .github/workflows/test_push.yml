@@ -8,6 +8,10 @@ on:
         description: 'Borrar las transacciones de prueba en vez de enviar push'
         type: boolean
         default: false
+      count:
+        description: 'Cuántas notificaciones de prueba enviar (1-10)'
+        type: string
+        default: '1'
 
 jobs:
   test-push:
@@ -23,6 +27,6 @@ jobs:
         run: pip install firebase-admin
 
       - name: Send test push
-        run: python send_test_push.py ${{ inputs.cleanup && '--cleanup' || '' }}
+        run: python send_test_push.py ${{ inputs.cleanup && '--cleanup' || format('--count={0}', inputs.count) }}
         env:
           FIREBASE_ADMIN_SDK_JSON: ${{ secrets.FIREBASE_ADMIN_SDK_JSON }}
