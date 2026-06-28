@@ -23,44 +23,44 @@ vi.mock('firebase/auth', () => ({
 
 vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
+  collection: vi.fn(),
   doc: vi.fn(),
-  getDoc: vi.fn(),
-  setDoc: vi.fn(),
+  getDoc: vi.fn(() => Promise.resolve({ exists: () => false, data: () => ({}) })),
+  setDoc: vi.fn(() => Promise.resolve()),
+  addDoc: vi.fn(() => Promise.resolve({ id: 'test-id' })),
+  deleteDoc: vi.fn(() => Promise.resolve()),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  onSnapshot: vi.fn(() => () => {}),
+  query: vi.fn(),
+  orderBy: vi.fn(),
+  where: vi.fn(),
+  limit: vi.fn(),
+  serverTimestamp: vi.fn(() => new Date()),
+  Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })), fromDate: vi.fn() },
+  writeBatch: vi.fn(() => ({ set: vi.fn(), delete: vi.fn(), commit: vi.fn(() => Promise.resolve()) })),
 }));
 
 // ─────────────────────────────────────────────────
 // Mock child components to isolate App behavior
 // ─────────────────────────────────────────────────
-vi.mock('./components/Login', () => ({
+vi.mock('./shared/components/Login', () => ({
   default: () => <div data-testid="login-component">Login Component</div>,
 }));
 
-vi.mock('./components/Dashboard', () => ({
-  default: () => <div data-testid="dashboard-component">Dashboard</div>,
-}));
-
-vi.mock('./components/Sidebar', () => ({
+vi.mock('./shared/components/Sidebar', () => ({
   default: () => <div data-testid="sidebar-component">Sidebar</div>,
 }));
 
-vi.mock('./components/Header', () => ({
+vi.mock('./shared/components/Header', () => ({
   default: () => <div data-testid="header-component">Header</div>,
 }));
 
-vi.mock('./components/Transactions', () => ({
-  default: () => <div data-testid="transactions-component">Transactions</div>,
+vi.mock('./shared/components/HomeScreen', () => ({
+  default: () => <div data-testid="home-component">Home</div>,
 }));
 
 vi.mock('./components/Settings', () => ({
   default: () => <div data-testid="settings-component">Settings</div>,
-}));
-
-vi.mock('./components/Presupuestos', () => ({
-  default: () => <div data-testid="presupuestos-component">Presupuestos</div>,
-}));
-
-vi.mock('./components/Insights', () => ({
-  default: () => <div data-testid="insights-component">Insights</div>,
 }));
 
 // ─────────────────────────────────────────────────
