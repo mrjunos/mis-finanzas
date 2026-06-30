@@ -53,6 +53,38 @@ function DomainCard({ color, icon, title, stats, onClick }) {
     );
 }
 
+function LinkCard({ href, icon, title, subtitle }) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: 16,
+                borderRadius: 20, textDecoration: 'none', color: 'var(--fg-1)',
+                background: 'var(--bg-raised)', border: '1px solid var(--border-default)',
+                boxShadow: 'var(--shadow-sm)',
+                transition: 'transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+        >
+            <div style={{
+                width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                background: 'var(--clay-50)', color: 'var(--clay-600)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+                <Icon name={icon} size={22} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--fg-1)' }}>{title}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
+            </div>
+            <Icon name="open_in_new" size={16} color="var(--fg-3)" />
+        </a>
+    );
+}
+
 export default function HomeScreen({ onSwitchDomain }) {
     const today = useMemo(() => new Date(), []);
     const month = today.getMonth();
@@ -138,6 +170,25 @@ export default function HomeScreen({ onSwitchDomain }) {
                     ]}
                     onClick={() => onSwitchDomain('habits')}
                 />
+            </div>
+
+            {/* External links — below the modules */}
+            <div>
+                <Eyebrow style={{ marginBottom: 10 }}>Explora</Eyebrow>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <LinkCard
+                        href="https://mrjunos.github.io/infografias/"
+                        icon="auto_graph"
+                        title="Infografías"
+                        subtitle="Visualizaciones"
+                    />
+                    <LinkCard
+                        href="https://mrjunos.github.io/cv/"
+                        icon="badge"
+                        title="Mi CV"
+                        subtitle="Perfil profesional"
+                    />
+                </div>
             </div>
 
             {/* Quick tip */}

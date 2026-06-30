@@ -1,0 +1,4 @@
+# Dependencias para los scripts de utilidad en scripts/
+# (reúsa las del pipeline principal + las propias de los reportes)
+-r ../requirements.txt
+reportlab>=4
