@@ -497,7 +497,7 @@ export default function Transactions({ onNavigate, onEditTransaction }) {
             <tbody>
               {paginatedTransactions.length > 0 ? paginatedTransactions.map(tx => {
                 const isTransfer = tx.type === 'transfer' || tx.isTransfer;
-                const amountColor = isTransfer ? 'var(--plum-400)' : tx.type === 'credit' ? 'var(--success-700)' : 'var(--fg-1)';
+                const amountColor = isTransfer ? 'var(--plum-400)' : tx.type === 'credit' ? 'var(--success-500)' : 'var(--fg-1)';
                 const sign = isTransfer ? '' : tx.type === 'credit' ? '+' : '−';
                 const hue = hueForCategory(tx.category);
                 return (
