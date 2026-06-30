@@ -6,6 +6,7 @@ import {
   hueForCategory, hueColorVar,
 } from '../../../shared/ds/Primitives';
 import ContextSwitcher from './ContextSwitcher';
+import CompactTransactions from './CompactTransactions';
 
 const EXCHANGE_RATE = 4100;
 const DAY_MS = 86400000;
@@ -15,7 +16,7 @@ const toCOP = (t) => (t.currency === 'USD' ? t.amount * EXCHANGE_RATE : t.amount
 const txDate = (t) => (t.date?.toDate ? t.date.toDate() : new Date(t.date));
 const midnight = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
-export default function Insights({ onNavigate }) {
+export default function Insights({ onNavigate, onEditTransaction }) {
   const { transactions, loading, currentContext } = useFinance();
 
   const filtered = useMemo(() => (
@@ -238,6 +239,9 @@ export default function Insights({ onNavigate }) {
           </div>
         </div>
       </Card>
+
+      {/* Recent movements — compact mobile list */}
+      <CompactTransactions onEditTransaction={onEditTransaction} />
 
       {/* Quick stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>

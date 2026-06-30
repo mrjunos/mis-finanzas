@@ -357,7 +357,7 @@ function AppContent() {
                   )}
 
                   {/* Finance */}
-                  {domain === 'finance' && currentView === 'insights'     && <Insights onNavigate={navigate} onAddTransaction={openAddTransaction} />}
+                  {domain === 'finance' && currentView === 'insights'     && <Insights onNavigate={navigate} onAddTransaction={openAddTransaction} onEditTransaction={openEditTransaction} />}
                   {domain === 'finance' && currentView === 'transactions'  && <Transactions onNavigate={navigate} onEditTransaction={openEditTransaction} />}
                   {domain === 'finance' && currentView === 'presupuestos'  && <Presupuestos onNavigate={navigate} />}
                   {domain === 'finance' && currentView === 'categoria'     && <CategoriaDetalle categoryName={viewParams?.category} onBack={goBack} onNavigate={navigate} />}
