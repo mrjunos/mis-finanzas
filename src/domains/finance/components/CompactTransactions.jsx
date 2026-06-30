@@ -86,7 +86,7 @@ export default function CompactTransactions({ onEditTransaction }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {rows.map(tx => {
           const isTransfer = tx.type === 'transfer' || tx.isTransfer;
-          const amountColor = isTransfer ? 'var(--plum-400)' : tx.type === 'credit' ? 'var(--success-700)' : 'var(--fg-1)';
+          const amountColor = isTransfer ? 'var(--plum-400)' : tx.type === 'credit' ? 'var(--olive-600)' : 'var(--clay-700)';
           const sign = isTransfer ? '' : tx.type === 'credit' ? '+' : '−';
           const pending = tx.status === 'pending';
           const tile = contextTile(tx.context);
