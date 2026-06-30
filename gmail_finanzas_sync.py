@@ -291,16 +291,19 @@ Si la transacción no fue exitosa o no es una transacción individual, devuelve 
         return None, cat_tree
 
 
-def registrar_transaccion(datos_ia, tx_dt, db, cat_tree):
+def registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=False):
     """Guarda la transacción extraída por la IA en Firestore.
 
     `tx_dt` es el datetime (tz Colombia) del momento del correo bancario, que
     usamos como verdad para la fecha Y la hora. No dependemos de la fecha que
     extrae el LLM (poco fiable y propensa a confundir el día).
+
+    Con `dry_run=True` arma y muestra la transacción pero NO escribe en
+    Firestore ni envía push (para pruebas en producción sin tocar la data).
     """
     # Manejar transacciones declinadas
     if datos_ia.get('type') == 'ignore':
-        print("⏭️ La IA determinó que la transacción fue fallida o declinada. Ignorando guardado.")
+        print("⏭️ La IA determinó que la transacción fue fallida/declinada o que no es una transacción. Ignorando guardado.")
         return True  # Devolvemos True para que de todas formas se quite la etiqueta
 
     # Fecha (solo día) y timestamp (día + hora) derivados del correo, en hora local.
@@ -351,6 +354,10 @@ def registrar_transaccion(datos_ia, tx_dt, db, cat_tree):
     print("\n📦 Datos a guardar en Firebase:")
     for k, v in nueva_transaccion.items():
         print(f"   {k}: {v}")
+
+    if dry_run:
+        print("🧪 DRY-RUN: no se escribe en Firebase ni se envía push.")
+        return True
 
     try:
         _, doc_ref = db.collection('finance_transactions').add(nueva_transaccion)
@@ -430,10 +437,67 @@ def mark_as_processed(service, msg_id, label_id_to_remove):
         print(f"⚠️ Error intentando remover etiqueta: {e}")
 
 
+def reprocess_last_emails(db, service, client, n, dry_run):
+    """Modo PRUEBA: re-procesa los últimos N correos ya procesados (ordenados por
+    processedAt). Pensado para validar el pipeline en producción tras un merge,
+    sin esperar a un correo real. Con dry_run=True NO escribe en Firestore, NO
+    envía push y NO toca etiquetas de Gmail.
+    """
+    modo = "DRY-RUN (no escribe nada)" if dry_run else "⚠️ ESCRIBE en Firestore"
+    print(f"🧪 Modo prueba — re-procesando los últimos {n} correos procesados · {modo}")
+
+    docs = db.collection(PROCESSED_COLLECTION) \
+        .order_by('processedAt', direction=firestore.Query.DESCENDING) \
+        .limit(n).get()
+    ids = [d.id for d in docs]
+    if not ids:
+        print("⚠️ No hay correos en el historial de procesados.")
+        return
+
+    for i, msg_id in enumerate(ids, 1):
+        print("\n" + "-" * 50)
+        print(f"📩 [{i}/{len(ids)}] Re-procesando correo {msg_id}")
+        try:
+            message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+        except Exception as e:
+            print(f"⚠️ No se pudo traer el correo {msg_id} desde Gmail: {e}")
+            continue
+
+        payload = message_data.get('payload', {})
+        subject = next((h.get('value', '') for h in payload.get('headers', [])
+                        if h.get('name', '').lower() == 'subject'), '')
+        if looks_like_statement(subject):
+            print(f"🚫 Sería ignorado por el gate de extractos ('{subject[:60]}').")
+            continue
+
+        internal_date_ms = int(message_data.get('internalDate', 0))
+        tx_dt = (
+            datetime.datetime.fromtimestamp(internal_date_ms / 1000.0, tz=BOGOTA)
+            if internal_date_ms else datetime.datetime.now(BOGOTA)
+        )
+
+        body_text = extract_email_body(payload)
+        if not body_text:
+            print(f"⚠️ No se pudo extraer texto legible del correo {msg_id}")
+            continue
+
+        datos_ia, cat_tree = procesar_texto_con_ia(body_text[:MAX_BODY_CHARS], db, client)
+        if datos_ia:
+            registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=dry_run)
+        else:
+            print(f"⚠️ El correo {msg_id} falló en la interpretación por IA.")
+
+    print("\n🧪 Fin del modo prueba.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Automatización de Gmail a Firestore con Gemini")
     parser.add_argument('--label', default=DEFAULT_LABEL,
                         help=f"Nombre de la etiqueta en Gmail (por defecto: '{DEFAULT_LABEL}')")
+    parser.add_argument('--reprocess-last', type=int, default=0, metavar='N',
+                        help="Modo PRUEBA: re-procesa los últimos N correos ya procesados (no toca la etiqueta).")
+    parser.add_argument('--dry-run', action='store_true',
+                        help="No escribe en Firestore ni envía push. Úsalo con --reprocess-last para validar tras un merge.")
     args = parser.parse_args()
 
     gemini_key = os.environ.get('GEMINI_API_KEY')
@@ -446,6 +510,12 @@ def main():
 
     print("🔑 Iniciando conexión con Gmail...")
     service = authenticate_gmail(db)
+
+    # Modo prueba: re-procesar los últimos N correos (validar el pipeline en
+    # producción tras un merge, idealmente con --dry-run).
+    if args.reprocess_last > 0:
+        reprocess_last_emails(db, service, client, args.reprocess_last, args.dry_run)
+        return
 
     label_name = args.label
     print(f"🔍 Buscando el ID interno para la etiqueta '{label_name}'...")

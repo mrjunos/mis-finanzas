@@ -1,0 +1,43 @@
+name: Test Reprocess Last Email
+
+# Disparo manual desde la pestaña Actions de GitHub.
+# Sirve para validar el pipeline en producción tras un merge, re-procesando
+# los últimos correos YA procesados, sin esperar a una transacción real.
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Cuántos de los últimos correos procesados re-procesar (1-10)'
+        type: string
+        default: '1'
+      write:
+        description: 'Escribir en Firestore (PELIGRO: crea transacciones reales). Por defecto es dry-run.'
+        type: boolean
+        default: false
+
+# No correr a la vez que el sync programado (procesarían a la par).
+concurrency:
+  group: gmail-sync
+  cancel-in-progress: false
+
+jobs:
+  test-reprocess:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Reprocess last email(s)
+        run: >-
+          python gmail_finanzas_sync.py
+          --reprocess-last ${{ inputs.count }}
+          ${{ inputs.write && ' ' || '--dry-run' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FIREBASE_ADMIN_SDK_JSON: ${{ secrets.FIREBASE_ADMIN_SDK_JSON }}
