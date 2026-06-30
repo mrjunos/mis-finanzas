@@ -58,15 +58,14 @@ export default function Sidebar({ activeView, activeDomain, onNavigate, onSwitch
       borderRight: '1px solid var(--border-subtle)',
       flexShrink: 0,
     }}>
-      {/* Logo mark */}
-      <div style={{
-        width: 36, height: 36, borderRadius: 11,
-        background: 'var(--ink-800)', color: '#fff',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 16,
-      }}>
-        <Icon name="donut_small" size={20} />
-      </div>
+      {/* Logo mark — PWA app icon */}
+      <img
+        src="/icons/icon-192.png"
+        alt="Mis Finanzas"
+        width={36}
+        height={36}
+        style={{ borderRadius: 11, marginBottom: 16, display: 'block' }}
+      />
 
       {/* Nav items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, alignItems: 'center', overflowY: 'auto' }}>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Icon, Donut, Editorial, IconTile, Pill, ProgressBar, SparkLine } from '../ds/Primitives';
+import { Icon, Editorial, IconTile, Pill, ProgressBar, SparkLine } from '../ds/Primitives';
 
 export default function Login() {
   const { loginWithGoogle, loginError } = useAuth();
@@ -51,14 +51,12 @@ export default function Login() {
       }}>
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Donut
-            size={28} thickness={6} gap={0.02}
-            segments={[
-              { value: 38, color: 'var(--clay-400)' },
-              { value: 22, color: 'var(--olive-300)' },
-              { value: 18, color: 'var(--amber-300)' },
-              { value: 22, color: 'var(--parchment-200)' },
-            ]}
+          <img
+            src="/icons/icon-192.png"
+            alt="Mis Finanzas"
+            width={28}
+            height={28}
+            style={{ borderRadius: 8, display: 'block' }}
           />
           <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Mis Finanzas</div>
         </div>

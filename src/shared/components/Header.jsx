@@ -23,15 +23,14 @@ export default function Header({ domain = 'home', onHome }) {
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '12px 20px',
       }}>
-        {/* Logo mark */}
-        <div style={{
-          width: 34, height: 34, borderRadius: 10,
-          background: 'var(--ink-800)', color: '#fff',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <Icon name="donut_small" size={18} />
-        </div>
+        {/* Logo mark — PWA app icon */}
+        <img
+          src="/icons/icon-192.png"
+          alt="Mis Finanzas"
+          width={34}
+          height={34}
+          style={{ borderRadius: 10, flexShrink: 0, display: 'block' }}
+        />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--fg-1)', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
