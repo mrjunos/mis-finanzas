@@ -26,7 +26,7 @@ export default function CompactTransactions({ onEditTransaction }) {
   const { getTotals, deleteTransaction, appConfig, currentContext } = useFinance();
   const { filteredTransactions } = useMemo(() => getTotals(currentContext), [getTotals, currentContext]);
 
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, txId: null });
 
   const catIconMap = useMemo(() => {
@@ -95,7 +95,7 @@ export default function CompactTransactions({ onEditTransaction }) {
               key={tx.id}
               onClick={() => onEditTransaction && onEditTransaction(tx)}
               style={{
-                display: 'flex', alignItems: 'flex-start', gap: 12,
+                display: 'flex', alignItems: 'center', gap: 12,
                 padding: 12, borderRadius: 16, cursor: 'pointer',
                 background: pending ? 'var(--warning-50)' : 'var(--bg-default)',
                 border: `1px solid ${pending ? 'var(--warning-500)' : 'var(--border-subtle)'}`,
@@ -107,18 +107,17 @@ export default function CompactTransactions({ onEditTransaction }) {
 
               {/* Concept block */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>
-                  {format(tx.date, 'dd MMM', { locale: es })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>
+                    {format(tx.date, 'dd MMM', { locale: es })}
+                  </span>
+                  <Icon name={categoryIcon(tx)} size={15} color="var(--fg-3)" />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {tx.title || tx.description}
                   </span>
                   {pending && <Pill variant="warning" icon="rate_review">Por revisar</Pill>}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <Pill variant="neutral">{tx.category || 'General'}</Pill>
-                  <Icon name={categoryIcon(tx)} size={16} color="var(--fg-3)" />
                 </div>
               </div>
 
