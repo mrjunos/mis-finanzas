@@ -70,6 +70,7 @@ export default function Sidebar({ activeView, onNavigate }) {
         <RailItem icon="insights"     title="Radiografía"  active={activeView === 'insights'}     onClick={() => onNavigate('insights')} />
         <RailItem icon="receipt_long" title="Movimientos"  active={activeView === 'transactions'} onClick={() => onNavigate('transactions')} />
         <RailItem icon="savings"      title="Presupuestos" active={activeView === 'presupuestos'} onClick={() => onNavigate('presupuestos')} />
+        <RailItem icon="route"        title="Ruta de pago"  active={activeView === 'ruta'}          onClick={() => onNavigate('ruta')} />
 
         <Divider />
 
