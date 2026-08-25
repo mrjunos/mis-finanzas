@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../../../firebase';
-import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, setDoc, getDoc, Timestamp, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { normalizeCategory, parseTransactionDate, calculateBalances } from '../utils/financeHelpers';
+import { podarMarcas } from '../utils/rutaPagoHelpers';
+import { RUTA_PAGO_SEED } from '../data/rutaPagoSeed';
 
 const FinanceContext = createContext();
 
@@ -26,10 +28,14 @@ const DEFAULT_CONFIG = {
     ]
 };
 
+// Plan de saneamiento de deudas — documento único, ver `rutaPagoSeed.js`
+const RUTA_PAGO_DOC = ['finance_debt_plans', 'default'];
+
 export const FinanceProvider = ({ children }) => {
     const [transactions, setTransactions] = useState([]);
     const [budgets, setBudgets] = useState({});
     const [goals, setGoals] = useState([]);
+    const [rutaPago, setRutaPago] = useState(null);
     const [loading, setLoading] = useState(true);
     const [currentContext, setCurrentContext] = useState('unified');
 
@@ -150,6 +156,37 @@ export const FinanceProvider = ({ children }) => {
             unsubscribeTransactions();
             unsubscribeGoals();
         }
+    }, []);
+
+    // --- Ruta de pago / plan de saneamiento ---
+    // Documento único con las deudas, los meses y las marcas. Se siembra con
+    // `RUTA_PAGO_SEED` la primera vez que se abre una instancia nueva, igual
+    // que `finance_settings/default`.
+    useEffect(() => {
+        const planRef = doc(db, ...RUTA_PAGO_DOC);
+        let sembrado = false;
+
+        const unsubscribe = onSnapshot(planRef, async (snapshot) => {
+            if (!snapshot || typeof snapshot.exists !== 'function') return;
+
+            if (snapshot.exists()) {
+                setRutaPago(snapshot.data());
+                return;
+            }
+
+            // Instancia nueva: sembrar el plan por defecto una sola vez.
+            if (sembrado) return;
+            sembrado = true;
+            try {
+                await setDoc(planRef, RUTA_PAGO_SEED);
+            } catch (error) {
+                console.error("Error seeding ruta de pago: ", error);
+            }
+        }, (error) => {
+            console.error("Error fetching ruta de pago:", error);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const updateAppConfig = useCallback(async (newConfig) => {
@@ -340,10 +377,53 @@ export const FinanceProvider = ({ children }) => {
     }, []);
 
 
+    // Marca o desmarca un ítem del plan. `siguiente` es el estado deseado, así
+    // el callback no depende del plan actual y no se re-crea en cada snapshot.
+    const toggleRutaPagoItem = useCallback(async (itemId, siguiente) => {
+        try {
+            await updateDoc(doc(db, ...RUTA_PAGO_DOC), {
+                [`done.${itemId}`]: siguiente ? true : deleteField(),
+            });
+        } catch (error) {
+            console.error("Error toggling ruta de pago item: ", error);
+            throw error;
+        }
+    }, []);
+
+    // Guarda el plan completo (deudas, meses e ítems editados desde el modal).
+    // Poda las marcas de ítems que ya no existen para no acumular basura.
+    const saveRutaPago = useCallback(async (nextPlan) => {
+        try {
+            await setDoc(doc(db, ...RUTA_PAGO_DOC), {
+                nombre: nextPlan.nombre || '',
+                periodo: nextPlan.periodo || '',
+                moneda: nextPlan.moneda || 'COP',
+                deudas: nextPlan.deudas || [],
+                meses: nextPlan.meses || [],
+                done: podarMarcas(nextPlan),
+                updatedAt: Timestamp.now(),
+            });
+        } catch (error) {
+            console.error("Error saving ruta de pago: ", error);
+            throw error;
+        }
+    }, []);
+
+    const resetRutaPagoMarcas = useCallback(async () => {
+        try {
+            await updateDoc(doc(db, ...RUTA_PAGO_DOC), { done: {} });
+        } catch (error) {
+            console.error("Error resetting ruta de pago: ", error);
+            throw error;
+        }
+    }, []);
+
+
     const value = useMemo(() => ({
         transactions,
         budgets,
         goals,
+        rutaPago,
         loading,
         currentContext,
         setCurrentContext,
@@ -359,10 +439,14 @@ export const FinanceProvider = ({ children }) => {
         deleteGoal,
         fetchBudgetConfig,
         saveBudgetConfig,
+        toggleRutaPagoItem,
+        saveRutaPago,
+        resetRutaPagoMarcas,
     }), [
-        transactions, budgets, goals, loading, currentContext, getTotals, appConfig,
+        transactions, budgets, goals, rutaPago, loading, currentContext, getTotals, appConfig,
         addTransaction, addTransfer, deleteTransaction, updateTransaction,
         updateAppConfig, addGoal, updateGoal, deleteGoal, fetchBudgetConfig, saveBudgetConfig,
+        toggleRutaPagoItem, saveRutaPago, resetRutaPagoMarcas,
     ]);
 
     return (

@@ -2,9 +2,10 @@ import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { formatCurrency, formatCompactNumber } from '../../../shared/utils/format';
 import {
-  Icon, Card, Pill, Eyebrow, Editorial, SectionHeader, BarChart,
+  Icon, Card, Pill, Eyebrow, Editorial, SectionHeader, BarChart, Money, ProgressBar,
   hueForCategory, hueColorVar,
 } from '../../../shared/ds/Primitives';
+import { computeRutaPago } from '../utils/rutaPagoHelpers';
 import ContextSwitcher from './ContextSwitcher';
 import CompactTransactions from './CompactTransactions';
 
@@ -17,7 +18,7 @@ const txDate = (t) => (t.date?.toDate ? t.date.toDate() : new Date(t.date));
 const midnight = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
 export default function Insights({ onNavigate, onEditTransaction }) {
-  const { transactions, loading, currentContext, appConfig } = useFinance();
+  const { transactions, loading, currentContext, appConfig, rutaPago } = useFinance();
 
   // Tasa USD→COP configurable en Settings → Finanzas; fallback al valor histórico.
   const exchangeRate = Number(appConfig?.exchangeRate) > 0
@@ -145,6 +146,9 @@ export default function Insights({ onNavigate, onEditTransaction }) {
   }, [filtered, month, year, monthAgg, today, onNavigate, exchangeRate]);
 
   // This-month spending grouped by category — entry point to the category heatmap
+  // Resumen del plan de saneamiento — la vista completa vive en 'ruta'
+  const ruta = useMemo(() => (rutaPago ? computeRutaPago(rutaPago) : null), [rutaPago]);
+
   const categoryBreakdown = useMemo(() => {
     const cats = {};
     filtered.forEach(t => {
@@ -244,6 +248,32 @@ export default function Insights({ onNavigate, onEditTransaction }) {
           </div>
         </div>
       </Card>
+
+      {/* Ruta de pago — resumen del plan de saneamiento */}
+      {ruta && ruta.total > 0 && (
+        <Card
+          padding={14}
+          moduleHue="var(--clay-500)"
+          onClick={() => onNavigate && onNavigate('ruta')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <Eyebrow style={{ marginBottom: 4 }}>Ruta de pago</Eyebrow>
+              {ruta.restante > 0
+                ? <Money amount={ruta.restante} currency={rutaPago.moneda || 'COP'} size="md" />
+                : <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--success-500)' }}>Sin deudas</span>}
+            </div>
+            <Icon name="chevron_right" size={20} color="var(--fg-4)" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <ProgressBar value={ruta.pagado} max={ruta.total} warningAt={2} />
+          </div>
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-3)', fontWeight: 600 }}>
+            {ruta.saldadas} de {ruta.deudas.length} {ruta.deudas.length === 1 ? 'deuda saldada' : 'deudas saldadas'}
+            {' · '}{Math.round(ruta.pct)}% del plan
+          </div>
+        </Card>
+      )}
 
       {/* Recent movements — compact mobile list */}
       <CompactTransactions onEditTransaction={onEditTransaction} />

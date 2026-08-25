@@ -22,6 +22,7 @@ import Insights from './domains/finance/components/Insights';
 
 const Transactions       = lazy(() => import('./domains/finance/components/Transactions'));
 const Presupuestos       = lazy(() => import('./domains/finance/components/Presupuestos'));
+const RutaPago           = lazy(() => import('./domains/finance/components/RutaPago'));
 const CategoriaDetalle   = lazy(() => import('./domains/finance/components/CategoriaDetalle'));
 const TransaccionDetalle = lazy(() => import('./domains/finance/components/TransaccionDetalle'));
 const TransactionModal   = lazy(() => import('./domains/finance/components/TransactionModal'));
@@ -30,7 +31,7 @@ const TransactionModal   = lazy(() => import('./domains/finance/components/Trans
 const Settings = lazy(() => import('./components/Settings'));
 
 // Views that push from within a domain (not tab-bar destinations)
-const DETAIL_VIEWS = ['categoria', 'transaccion'];
+const DETAIL_VIEWS = ['categoria', 'transaccion', 'ruta'];
 
 // Resolves a deep-link transaction ID using the in-memory cache first,
 // avoiding a Firestore round-trip when the app is already open and subscribed.
@@ -282,6 +283,7 @@ function AppContent() {
             {currentView === 'insights'      && <Insights onNavigate={navigate} onAddTransaction={openAddTransaction} onEditTransaction={openEditTransaction} />}
             {currentView === 'transactions'  && <Transactions onNavigate={navigate} onEditTransaction={openEditTransaction} />}
             {currentView === 'presupuestos'  && <Presupuestos onNavigate={navigate} />}
+            {currentView === 'ruta'          && <RutaPago onBack={goBack} />}
             {currentView === 'categoria'     && <CategoriaDetalle categoryName={viewParams?.category} onBack={goBack} onNavigate={navigate} />}
             {currentView === 'transaccion'   && <TransaccionDetalle txId={viewParams?.txId} onBack={goBack} onEdit={openEditTransaction} />}
             {isSettingsView && <Settings onNavigate={navigate} push={push} />}
