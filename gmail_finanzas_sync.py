@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import base64
 import argparse
@@ -19,7 +20,7 @@ from firebase_admin import firestore, messaging
 from utils import conectar_db
 from tx_enrich import (
     build_merchant_memory, memory_for_prompt, apply_merchant_memory,
-    validate_classification, looks_like_statement,
+    validate_classification, looks_like_statement, is_third_party_uber_rides_alert,
 )
 
 # --- CONFIGURACIÓN ---
@@ -153,6 +154,12 @@ def extract_email_body(payload):
                 text_content = soup.get_text(separator="\n")
             else:
                 text_content = decoded
+
+    # Colapsa líneas en blanco/con solo nbsp: los templates de banco tienen
+    # muchísimas celdas de tabla vacías que separator="\n" convierte en líneas
+    # vacías, desperdiciando el presupuesto de MAX_BODY_CHARS en puro relleno
+    # (medido: ~90% del texto extraído de un correo real de RappiCard era esto).
+    text_content = re.sub(r"[ \t\xa0]*\n[ \t\xa0\n]*", "\n", text_content)
 
     return text_content.strip()
 
@@ -483,6 +490,13 @@ def reprocess_last_emails(db, service, client, n, dry_run):
             print(f"⚠️ No se pudo extraer texto legible del correo {msg_id}")
             continue
 
+        sender = next((h.get('value', '') for h in payload.get('headers', [])
+                        if h.get('name', '').lower() == 'from'), '')
+        if is_third_party_uber_rides_alert(sender, body_text):
+            print(f"🚫 Sería ignorado por el gate de alertas de terceros sobre Uber Rides "
+                  f"('{sender[:60]}').")
+            continue
+
         datos_ia, cat_tree = procesar_texto_con_ia(body_text[:MAX_BODY_CHARS], db, client)
         if datos_ia:
             registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=dry_run)
@@ -591,6 +605,18 @@ def main():
         if not body_text:
             print(f"⚠️ No se pudo extraer texto legible del correo {msg_id}")
             # Lo marcamos procesado de todas formas para no ciclar en correos vacíos
+            mark_as_processed(service, msg_id, label_id)
+            save_processed_email(db, msg_id)
+            continue
+
+        # Gate barato pre-LLM: alertas de terceros (banco) sobre cargos de Uber
+        # Rides — solo el recibo de Uber mismo debe crear la transacción (evita
+        # "fantasmas" por viajes solicitados pero nunca completados).
+        sender = next((h.get('value', '') for h in payload.get('headers', [])
+                        if h.get('name', '').lower() == 'from'), '')
+        if is_third_party_uber_rides_alert(sender, body_text):
+            print(f"🚫 Alerta de un tercero sobre un cargo de Uber Rides ('{sender[:60]}'). "
+                  f"Se ignora sin llamar al LLM: solo el recibo de Uber crea la transacción.")
             mark_as_processed(service, msg_id, label_id)
             save_processed_email(db, msg_id)
             continue

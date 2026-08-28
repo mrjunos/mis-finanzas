@@ -3,10 +3,13 @@ Lógica de enriquecimiento/validación de transacciones del sync de Gmail.
 
 Módulo puro (solo stdlib): se puede testear sin Firebase ni Gemini.
 
-- Memoria de comercios: clasificación habitual (categoría/subcategoría/contexto)
-  por comercio, derivada del historial. Se usa como (a) prior en el prompt y
-  (b) post-corrección determinista de la salida del LLM cuando hay confianza.
+- Memoria de comercios: clasificación habitual (título/categoría/subcategoría/
+  contexto) por comercio, derivada del historial. Se usa como (a) prior en el
+  prompt y (b) post-corrección determinista de la salida del LLM cuando hay
+  confianza.
 - Gate de no-transacciones: detecta extractos por asunto.
+- Gate de Uber Rides: descarta alertas de terceros (banco) sobre cargos de
+  Uber Rides, para que solo el recibo del propio Uber registre el viaje.
 - Validación contra catálogos al guardar.
 """
 
@@ -34,6 +37,28 @@ def normalize_merchant(title):
 def looks_like_statement(subject):
     """True si el asunto parece un extracto/estado de cuenta (no una transacción)."""
     return bool(_STATEMENT_RE.search(subject or ""))
+
+
+# Alertas de terceros (banco) sobre cargos de Uber Rides: Uber emite su propio
+# recibo por cada viaje REALMENTE completado (remitente noreply@uber.com), pero
+# el banco dispara una alerta también en intentos que nunca se completan (sin
+# conductor, cambio de ruta/vehículo), generando "transacciones fantasma". Por
+# eso, para Uber Rides, solo el correo de Uber debe crear una transacción:
+# cualquier alerta de un remitente que NO sea Uber, mencionando "uber" como
+# comercio (y no "uber eats", que sigue procesándose normal), se descarta sin
+# llamar al LLM. No depende de ningún dominio de banco en particular.
+_UBER_WORD_RE = re.compile(r"\buber\b", re.IGNORECASE)
+_UBER_EATS_RE = re.compile(r"\buber\s+eats\b", re.IGNORECASE)
+
+
+def is_third_party_uber_rides_alert(sender, text):
+    """True si `text` viene de alguien que NO es Uber y menciona un cargo de
+    Uber Rides (no Uber Eats) — debe descartarse sin crear transacción, porque
+    solo el recibo del propio Uber debe registrar el viaje."""
+    if "uber.com" in (sender or "").lower():
+        return False
+    body = text or ""
+    return bool(_UBER_WORD_RE.search(body)) and not bool(_UBER_EATS_RE.search(body))
 
 
 def build_merchant_memory(transactions):
@@ -89,10 +114,19 @@ def memory_for_prompt(memory, top_n=60):
 
 
 def _lookup_merchant(title, memory):
-    """Busca el comercio en la memoria: exacto y, si falla, fuzzy (>=0.9)."""
+    """Busca el comercio en la memoria: exacto, por contención de palabra
+    completa (conecta variantes como 'uber' con 'uber rides*dl' o 'payu*uber',
+    prefiriendo siempre la clave conocida más específica/larga) y, si todo
+    falla, fuzzy (>=0.9)."""
     key = normalize_merchant(title)
     if key in memory:
         return memory[key]
+    contained = [
+        k for k in memory
+        if len(k) >= 3 and re.search(rf"(?:^|\s){re.escape(k)}(?:\s|$)", key)
+    ]
+    if contained:
+        return memory[max(contained, key=len)]
     match = difflib.get_close_matches(key, list(memory.keys()), n=1, cutoff=0.9)
     return memory[match[0]] if match else None
 
@@ -100,8 +134,9 @@ def _lookup_merchant(title, memory):
 def apply_merchant_memory(datos, memory,
                           min_count=MEMORY_MIN_COUNT, min_agree=MEMORY_MIN_AGREE):
     """Post-corrección determinista: si el comercio es conocido y consistente,
-    fija categoría/subcategoría/contexto desde la memoria (por campo, según su
-    acuerdo). No toca amount/title/comments. No aplica a 'ignore'.
+    fija título/categoría/subcategoría/contexto desde la memoria (el título se
+    fija siempre que el comercio sea conocido; el resto de campos según su
+    acuerdo). No toca amount/comments. No aplica a 'ignore'.
 
     Devuelve (datos_corregidos, info|None) — info trae lo que cambió.
     """
@@ -113,6 +148,9 @@ def apply_merchant_memory(datos, memory,
 
     out = dict(datos)
     changed = {}
+    if out.get("title") != m["merchant"]:
+        changed["title"] = (out.get("title"), m["merchant"])
+        out["title"] = m["merchant"]
     if m["cat_agree"] >= min_agree and out.get("category") != m["category"]:
         changed["category"] = (out.get("category"), m["category"])
         out["category"] = m["category"]
