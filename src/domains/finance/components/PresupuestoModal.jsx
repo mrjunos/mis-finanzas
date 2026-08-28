@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Icon, Field } from '../../../shared/ds/Primitives';
+import ConfirmModal from '../../../shared/components/ConfirmModal';
 
 const INPUT_STYLE = {
     width: '100%', padding: '10px 14px',
@@ -12,8 +13,9 @@ const INPUT_STYLE = {
     boxSizing: 'border-box',
 };
 
-export default function PresupuestoModal({ isOpen, onClose, currentContext, currentMonthStr, editingCategory, onSaveConfig }) {
+export default function PresupuestoModal({ isOpen, onClose, currentContext, currentMonthStr, editingCategory, onSaveConfig, onDeleteConfig }) {
     const { appConfig } = useFinance();
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const categories = useMemo(() => {
         if (!appConfig?.categories) return [];
@@ -202,8 +204,40 @@ export default function PresupuestoModal({ isOpen, onClose, currentContext, curr
                     >
                         Guardar Presupuesto
                     </button>
+
+                    {editingCategory && onDeleteConfig && (
+                        <button
+                            type="button"
+                            onClick={() => setConfirmDelete(true)}
+                            style={{
+                                width: '100%', padding: '12px 20px',
+                                borderRadius: 'var(--r-xl)', border: '1px solid var(--danger-200, rgba(177,77,58,0.35))',
+                                background: 'transparent', color: 'var(--danger-700)',
+                                fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 14,
+                                cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            }}
+                        >
+                            <Icon name="delete" size={18} />
+                            Eliminar presupuesto
+                        </button>
+                    )}
                 </form>
             </div>
+
+            <ConfirmModal
+                isOpen={confirmDelete}
+                onClose={() => setConfirmDelete(false)}
+                onConfirm={async () => {
+                    setConfirmDelete(false);
+                    await onDeleteConfig();
+                    onClose();
+                }}
+                title="Eliminar presupuesto"
+                message={`Se quitará el límite de "${formData.nombre}${formData.subcategory ? ` › ${formData.subcategory}` : ''}" para este mes. Las transacciones no se tocan.`}
+                confirmText="Eliminar"
+                isDestructive
+            />
         </>
     );
 }
