@@ -194,6 +194,12 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
           currency: formData.currency, card: formData.card, comments: formData.comments, date: txDate,
           status: 'reviewed', // saving (new or edit) clears the pending-review flag
         };
+        // Si era una transferencia y se reclasifica, limpiar los campos de transferencia
+        if (editingTransaction && (editingTransaction.type === 'transfer' || editingTransaction.isTransfer)) {
+          txData.isTransfer = false;
+          txData.destinationCard = null;
+          txData.destinationContext = null;
+        }
         if (editingTransaction) await updateTransaction(editingTransaction.id, txData);
         else await addTransaction(txData);
       }
@@ -277,37 +283,25 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
               padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 16,
             }}>
 
-              {/* Type selector */}
-              {isNew ? (
-                <Segmented
-                  value={mode === 'transfer' ? 'transfer' : formData.type}
-                  onChange={v => {
-                    if (v === 'transfer') {
-                      setMode('transfer');
-                      setFormData(prev => (prev.title ? prev : { ...prev, title: 'Transferencia' }));
-                    } else {
-                      setMode('transaction');
-                      set('type', v);
-                    }
-                  }}
-                  size="md"
-                  options={[
-                    { value: 'debit',     label: 'Gasto' },
-                    { value: 'credit',    label: 'Ingreso' },
-                    { value: 'transfer',  label: 'Transferencia' },
-                  ]}
-                />
-              ) : mode === 'transaction' ? (
-                <Segmented
-                  value={formData.type}
-                  onChange={v => set('type', v)}
-                  size="md"
-                  options={[
-                    { value: 'debit',  label: 'Gasto' },
-                    { value: 'credit', label: 'Ingreso' },
-                  ]}
-                />
-              ) : null}
+              {/* Type selector — also al editar, para reclasificar (p. ej. transferencia → gasto) */}
+              <Segmented
+                value={mode === 'transfer' ? 'transfer' : formData.type}
+                onChange={v => {
+                  if (v === 'transfer') {
+                    setMode('transfer');
+                    setFormData(prev => (prev.title ? prev : { ...prev, title: 'Transferencia' }));
+                  } else {
+                    setMode('transaction');
+                    set('type', v);
+                  }
+                }}
+                size="md"
+                options={[
+                  { value: 'debit',     label: 'Gasto' },
+                  { value: 'credit',    label: 'Ingreso' },
+                  { value: 'transfer',  label: 'Transferencia' },
+                ]}
+              />
 
               {/* Amount card */}
               <div style={{

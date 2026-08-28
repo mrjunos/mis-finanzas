@@ -19,6 +19,13 @@ const FilterField = ({ label, children }) => (
   </div>
 );
 
+// "Bancolombia Master *7761" → "Master *7761" (drop the issuer prefix on mobile)
+const shortAccount = (label) => {
+  if (!label) return 'Efectivo';
+  const parts = label.trim().split(/\s+/);
+  return parts.length > 2 ? parts.slice(-2).join(' ') : label;
+};
+
 const filterInputStyle = {
   background: 'var(--bg-default)',
   border: '1px solid var(--border-default)',
@@ -480,8 +487,74 @@ export default function Transactions({ onNavigate, onEditTransaction }) {
           </div>
         </div>
 
-        {/* Table — kept wide, scrolls horizontally on mobile */}
-        <div style={{ overflowX: 'auto' }}>
+        {/* Mobile — card rows: everything visible without horizontal scroll */}
+        <div className="md:hidden" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {paginatedTransactions.length > 0 ? paginatedTransactions.map(tx => {
+            const isTransfer = tx.type === 'transfer' || tx.isTransfer;
+            const amountColor = isTransfer ? 'var(--plum-400)' : tx.type === 'credit' ? 'var(--success-500)' : 'var(--fg-1)';
+            const sign = isTransfer ? '' : tx.type === 'credit' ? '+' : '−';
+            const pending = tx.status === 'pending';
+            return (
+              <div
+                key={tx.id}
+                onClick={() => onEditTransaction && onEditTransaction(tx)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: 12, borderRadius: 14, cursor: 'pointer',
+                  background: pending ? 'var(--warning-50)' : 'var(--bg-default)',
+                  border: `1px solid ${pending ? 'var(--warning-500)' : 'var(--border-subtle)'}`,
+                }}
+              >
+                <IconTile icon={txIcon(tx)} hue={hueForCategory(tx.category)} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--fg-3)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {/* Pendiente va como ícono aquí: un pill junto al título dejaría el título sin espacio */}
+                    {pending && <Icon name="rate_review" size={13} color="var(--warning-700)" style={{ flexShrink: 0 }} />}
+                    <span style={{ fontFamily: 'var(--font-mono)', flexShrink: 0, color: pending ? 'var(--warning-700)' : undefined, fontWeight: pending ? 700 : undefined }}>
+                      {format(tx.date, 'dd MMM', { locale: es })}
+                    </span>
+                    <span aria-hidden>·</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {tx.category || 'General'}{tx.subcategory ? ` · ${tx.subcategory}` : ''}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 2, fontWeight: 700, fontSize: 14, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {tx.title || tx.description}
+                  </div>
+                  <div style={{ marginTop: 2, fontSize: 11, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {isTransfer
+                      ? <>{shortAccount(tx.card || 'Efectivo')} <span style={{ color: 'var(--plum-400)' }}>→</span> {shortAccount(tx.destinationCard || '?')}</>
+                      : shortAccount(tx.card || tx.account || 'Efectivo')}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: amountColor, whiteSpace: 'nowrap' }}>
+                    {sign}{formatCurrency(Math.abs(tx.amount || 0), tx.currency || 'COP')}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--fg-4)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    {tx.currency || 'COP'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmDelete({ isOpen: true, txId: tx.id }); }}
+                  style={{ border: 'none', background: 'transparent', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, borderRadius: 6, flexShrink: 0 }}
+                >
+                  <Icon name="delete" size={16} />
+                </button>
+              </div>
+            );
+          }) : (
+            <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <IconTile icon="receipt_long" hue="ink" size={48} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-2)' }}>No hay coincidencias.</span>
+              <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Prueba con otro filtro o limpia la búsqueda.</span>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop — full table */}
+        <div className="hidden md:block" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
