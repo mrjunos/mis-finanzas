@@ -18,6 +18,7 @@ from google.genai import types
 # Firebase
 from firebase_admin import firestore, messaging
 from utils import conectar_db
+from card_resolution import resolve_card
 from tx_enrich import (
     build_merchant_memory, memory_for_prompt, apply_merchant_memory,
     validate_classification, looks_like_statement, is_third_party_uber_rides_alert,
@@ -213,7 +214,7 @@ def _prefetch_context(db):
     return cat_tree, cuentas, monedas, recientes, memoria
 
 
-def procesar_texto_con_ia(texto, db, client):
+def procesar_texto_con_ia(texto, db, client, source_text=None):
     """Analiza el correo con Gemini y devuelve la transacción enriquecida.
 
     En una sola llamada extrae la transacción y la normaliza (categoría,
@@ -255,7 +256,7 @@ Reglas para los campos:
 - currency: elige una opción de {monedas}, o 'COP' si el texto usa $, pesos, etc.
 - category: elige una opción de {nombres_categorias}. Si no aplica ninguna, usa 'Otros'.
 - subcategory: elige una subcategoría VÁLIDA de la categoría que elegiste (ver lista de arriba). Si ninguna aplica o esa categoría no tiene subcategorías, usa "".
-- card: elige una opción de {cuentas} según la data del correo.
+- card: usa una cuenta de {cuentas} solo si coincide con el identificador del correo. Nunca cambies los últimos dígitos. Si no coincide o es ambiguo, usa "". En pagos de tarjeta, la tarjeta destino NO identifica la cuenta fuente; usa "" si no se conoce la fuente.
 - context: 'personal' o 'business'. Infiérelo del título, el correo y el historial; por defecto 'personal'.
 - comments: nota con el DETALLE concreto que aparezca en el correo, no un genérico. Si el correo
   lista productos (p. ej. un domicilio), enuméralos; si es un transporte e incluye origen/destino, ponlos;
@@ -294,6 +295,8 @@ Si la transacción no fue exitosa o no es una transacción individual, devuelve 
 
         # Validación contra catálogos (categoría válida, cuenta válida).
         datos_extraidos = validate_classification(datos_extraidos, nombres_categorias, cuentas)
+        datos_extraidos = resolve_card(
+            datos_extraidos, source_text if source_text is not None else texto, cuentas)
         return datos_extraidos, cat_tree
     except Exception as e:
         print(f"\n❌ Error analizando o interpretando la respuesta de Gemini: {e}")
@@ -349,6 +352,7 @@ def registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=False):
         "category": category,
         "subcategory": subcategory,
         "card": datos_ia.get('card', 'general'),
+        "cardResolution": datos_ia.get("cardResolution", {}),
         "comments": datos_ia.get('comments', "Importado automáticamente desde Gmail vía IA"),
         "context": context,
         "date": tx_date,
@@ -497,7 +501,7 @@ def reprocess_last_emails(db, service, client, n, dry_run):
                   f"('{sender[:60]}').")
             continue
 
-        datos_ia, cat_tree = procesar_texto_con_ia(body_text[:MAX_BODY_CHARS], db, client)
+        datos_ia, cat_tree = procesar_texto_con_ia(body_text[:MAX_BODY_CHARS], db, client, source_text=body_text)
         if datos_ia:
             registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=dry_run)
         else:
@@ -625,7 +629,7 @@ def main():
         truncated_text = body_text[:MAX_BODY_CHARS]
         print(f"📄 Texto detectado (resumen): {truncated_text[:100].replace(chr(10), ' ')}...")
 
-        datos_ia, cat_tree = procesar_texto_con_ia(truncated_text, db, client)
+        datos_ia, cat_tree = procesar_texto_con_ia(truncated_text, db, client, source_text=body_text)
 
         if datos_ia:
             success = registrar_transaccion(datos_ia, tx_dt, db, cat_tree)
@@ -638,3 +642,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
