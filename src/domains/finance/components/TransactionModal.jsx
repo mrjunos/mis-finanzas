@@ -122,7 +122,7 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
         category: (typeof editingTransaction.category === 'object' ? editingTransaction.category?.name : editingTransaction.category) || allCategories?.[0]?.name || 'general',
         subcategory: editingTransaction.subcategory || '',
         currency: editingTransaction.currency || appConfig?.currencies?.[0] || 'USD',
-        card: editingTransaction.card || appConfig?.accounts?.[0] || '',
+        card: editingTransaction.card ?? '',
         date: formattedDate,
         comments: editingTransaction.comments || '',
         destinationContext: editingTransaction.destinationContext || 'personal',
@@ -160,6 +160,11 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Imported unresolved accounts must be chosen explicitly before review.
+    if (!formData.card || !appConfig?.accounts?.includes(formData.card)) {
+      alert('Selecciona una cuenta válida antes de guardar.');
+      return;
+    }
     try {
       let txDate = formData.date;
       if (!txDate) {
@@ -177,6 +182,9 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
             category: formData.category, subcategory: formData.subcategory,
             currency: formData.currency, card: formData.card, destinationCard: formData.destinationCard,
             comments: formData.comments, date: txDate, status: 'reviewed',
+            ...(editingTransaction.cardResolution ? { cardResolution: {
+              ...editingTransaction.cardResolution, status: 'resolved', reason: 'manual_selection',
+            } } : {}),
           });
         } else {
           await addTransfer({
@@ -193,6 +201,9 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
           context: formData.context, category: formData.category, subcategory: formData.subcategory,
           currency: formData.currency, card: formData.card, comments: formData.comments, date: txDate,
           status: 'reviewed', // saving (new or edit) clears the pending-review flag
+          ...(editingTransaction?.cardResolution ? { cardResolution: {
+            ...editingTransaction.cardResolution, status: 'resolved', reason: 'manual_selection',
+          } } : {}),
         };
         // Si era una transferencia y se reclasifica, limpiar los campos de transferencia
         if (editingTransaction && (editingTransaction.type === 'transfer' || editingTransaction.isTransfer)) {
@@ -500,3 +511,4 @@ export default function TransactionModal({ isOpen, onClose, editingTransaction, 
     </>
   );
 }
+

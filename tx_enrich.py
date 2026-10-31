@@ -15,6 +15,7 @@ Módulo puro (solo stdlib): se puede testear sin Firebase ni Gemini.
 
 import re
 import difflib
+from card_resolution import account_suffix
 from collections import Counter
 
 # Umbrales para auto-aplicar la memoria de comercios sobre la salida del LLM.
@@ -174,7 +175,12 @@ def validate_classification(datos, category_names, accounts):
         out["category"] = "Otros" if "Otros" in category_names else (out.get("category") or "general")
     card = out.get("card")
     if accounts and card and card not in accounts:
-        match = difflib.get_close_matches(str(card), list(accounts), n=1, cutoff=0.8)
+        # Never fuzzy-match explicit, conflicting last-four identifiers.
+        suffix = account_suffix(card)
+        candidates = [a for a in accounts
+                      if not suffix or account_suffix(a) == suffix]
+        match = difflib.get_close_matches(str(card), candidates, n=1, cutoff=0.8)
         if match:
             out["card"] = match[0]
     return out
+
