@@ -120,6 +120,13 @@ export default function Presupuestos({ onNavigate }) {
     await saveBudgetConfig(monthStr, contextoKey, updated);
   };
 
+  const handleDeleteBudgetConfig = async () => {
+    if (!editingCategory) return;
+    const origId = getBudgetId(editingCategory);
+    const updated = localCategories.filter(c => getBudgetId(c) !== origId);
+    await saveBudgetConfig(monthStr, contextoKey, updated);
+  };
+
   const pct = (spent, limit) => Math.min(100, (spent / limit) * 100);
 
   // ── Unified view ─────────────────────────────────────────────────────
@@ -423,6 +430,7 @@ export default function Presupuestos({ onNavigate }) {
         currentMonthStr={monthDisplay}
         editingCategory={editingCategory}
         onSaveConfig={handleSaveBudgetConfig}
+        onDeleteConfig={handleDeleteBudgetConfig}
       />
       <MetaModal
         isOpen={isMetaModalOpen}
