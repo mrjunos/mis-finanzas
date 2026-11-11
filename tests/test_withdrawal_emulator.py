@@ -38,6 +38,12 @@ class EmulatorTests(unittest.TestCase):
         self.assertEqual(results.count('created'), 1)
         self.assertEqual(len(list(self.db.collection('finance_transactions').stream())), 1)
         self.assertEqual(results.count('already_recorded'), 3)
+        markers = list(self.db.collection('processed_gmail_ids').stream())
+        events = list(self.db.collection('processed_gmail_ids/withdrawal_events/events').stream())
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(markers[0].to_dict()['transactionId'], self.plan['documentId'])
+        self.assertEqual(events[0].to_dict()['transactionId'], self.plan['documentId'])
 
     def test_retry_after_label_failure_preserves_edit(self):
         self.assertEqual(self.commit(), 'created')

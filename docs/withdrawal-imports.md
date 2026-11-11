@@ -44,3 +44,14 @@ Tests require exactly loopback8087 and the demo project; no credentials or real
 Gmail/model requests. CI runs emulator tests before build/deployment. The suite
 covers concurrent retries, atomic failure, label-removal retry, preserved user
 edits, duplicate event holds, legacy collisions and missing aliases.
+
+### Transaction contention
+
+The withdrawal adapter permits three outer attempts after typed Firestore
+`Aborted` failures (including SDK retry-exhaustion `ValueError` caused by
+`Aborted`). Each attempt re-reads every guard in a fresh atomic transaction;
+exponential jitter separates competing callers. Permission, validation and
+unknown-outcome errors are not retried here. Exhaustion propagates so Gmail
+remains pending. This bounds retries but does not guarantee success under
+sustained contention. The emulator test retains four concurrent writers and
+checks the transaction, processed marker and event claim all exist exactly once.

@@ -31,6 +31,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install Python test dependencies
+        run: python -m pip install firebase-admin==7.7.0
       - name: Test email card resolution
         run: python -m unittest discover -s tests -v
       - name: Setup Java for Firestore emulator
@@ -40,7 +42,6 @@ jobs:
           java-version: '21'
       - name: Install emulator test dependencies
         run: |
-          python -m pip install firebase-admin==7.7.0
           npm install --prefix "$RUNNER_TEMP/firebase-tools" firebase-tools@15.35.0
       - name: Test atomic imports against Firestore emulator
         env:

@@ -5,6 +5,9 @@ are atomic; Gmail label removal is allowed only after created/already_recorded.
 No credentials or network clients are constructed in this module.
 """
 
+import random
+import time
+
 
 def commit_withdrawal(db, plan, transactional, server_timestamp):
     if plan['action'] != 'create_transfer':
@@ -36,4 +39,19 @@ def commit_withdrawal(db, plan, transactional, server_timestamp):
                                            'policyVersion': 'withdrawal-v1'})
         return 'created'
 
-    return write(db.transaction())
+    # The SDK retries commit-time Aborted internally, but its retry loop has
+    # no jitter and read-time Aborted escapes it. Under contention (including
+    # emulator lock upgrades), all callers can exhaust those attempts together.
+    # Start a fresh atomic transaction after bounded jitter, re-reading every
+    # guard. Never retry permission, validation, or unknown-outcome failures.
+    for attempt in range(3):
+        try:
+            return write(db.transaction())
+        except Exception as error:
+            from google.api_core.exceptions import Aborted
+            retryable = isinstance(error, Aborted) or (
+                isinstance(error, ValueError) and isinstance(error.__cause__, Aborted)
+            )
+            if not retryable or attempt == 2:
+                raise
+            time.sleep(random.uniform(0.2, 0.8) * (2 ** attempt))
