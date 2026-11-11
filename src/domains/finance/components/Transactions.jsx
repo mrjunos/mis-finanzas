@@ -8,6 +8,7 @@ import {
   Icon, Card, Pill, IconTile, Eyebrow, hueForCategory, hueColorVar
 } from '../../../shared/ds/Primitives';
 import ContextSwitcher from './ContextSwitcher';
+import { signedCashFlow } from '../utils/financeHelpers';
 
 const LazyBalanceChart = React.lazy(() => import('./BalanceChart'));
 
@@ -156,7 +157,7 @@ export default function Transactions({ onNavigate, onEditTransaction }) {
     let running = {};
     activeCurrencies.forEach(c => { running[c] = 0; });
     const dataPoints = asc.map(t => {
-      const amt = t.type === 'credit' ? Number(t.amount) : -Number(t.amount);
+      const amt = signedCashFlow(t);
       const cur = t.currency || 'USD';
       running[cur] += amt;
       return { date: format(t.date, 'dd MMM', { locale: es }), timestamp: t.date.getTime(), ...running };

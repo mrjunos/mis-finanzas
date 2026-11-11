@@ -46,3 +46,6 @@ public/firebase-messaging-sw.js
 __pycache__/
 *.pyc
 .gh-config/
+
+# Isolated demo-only emulator configuration (no credentials)
+!firebase.emulator.json

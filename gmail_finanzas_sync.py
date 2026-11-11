@@ -19,6 +19,7 @@ from google.genai import types
 from firebase_admin import firestore, messaging
 from utils import conectar_db
 from card_resolution import resolve_card
+from withdrawal_pipeline import process_withdrawal
 from tx_enrich import (
     build_merchant_memory, memory_for_prompt, apply_merchant_memory,
     validate_classification, looks_like_statement, is_third_party_uber_rides_alert,
@@ -65,7 +66,7 @@ def _save_token(db, token_info):
     db.collection(TOKEN_COLLECTION).document(TOKEN_DOC).set(token_info)
 
 
-def authenticate_gmail(db):
+def authenticate_gmail(db, persist_refresh=True):
     """Autentica con la API de Gmail usando el token guardado en Firestore.
 
     El token (con su refresh_token, client_id y client_secret) se siembra una
@@ -86,8 +87,9 @@ def authenticate_gmail(db):
         if creds.expired and creds.refresh_token:
             print("🔄 Token expirado. Refrescando...")
             creds.refresh(Request())
-            _save_token(db, json.loads(creds.to_json()))
-            print("✅ Token refrescado y guardado en Firestore.")
+            if persist_refresh:
+                _save_token(db, json.loads(creds.to_json()))
+            print("✅ Token refrescado" + (" y guardado en Firestore." if persist_refresh else " solo en memoria (dry-run)."))
         else:
             raise RuntimeError(
                 "El token de Gmail no es válido y no se puede refrescar. "
@@ -303,7 +305,7 @@ Si la transacción no fue exitosa o no es una transacción individual, devuelve 
         return None, cat_tree
 
 
-def registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=False):
+def registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=False, email_id=None):
     """Guarda la transacción extraída por la IA en Firestore.
 
     `tx_dt` es el datetime (tz Colombia) del momento del correo bancario, que
@@ -373,7 +375,27 @@ def registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=False):
         return True
 
     try:
-        _, doc_ref = db.collection('finance_transactions').add(nueva_transaccion)
+        if email_id:
+            # Atomic transaction + marker: a crash cannot leave an unmarked
+            # imported record. Never overwrite a record edited by the user.
+            doc_ref = db.collection('finance_transactions').document('gmail_' + email_id)
+            marker = db.collection(PROCESSED_COLLECTION).document(email_id)
+            nueva_transaccion['source'] = {'provider': 'gmail', 'gmailMessageId': email_id}
+            @firestore.transactional
+            def create_once(transaction):
+                processed = marker.get(transaction=transaction)
+                existing = doc_ref.get(transaction=transaction)
+                if processed.exists:
+                    return False
+                if existing.exists:
+                    raise RuntimeError('Existing deterministic document without processed marker; review required')
+                transaction.create(doc_ref, nueva_transaccion)
+                transaction.create(marker, {'processedAt': firestore.SERVER_TIMESTAMP, 'transactionId': doc_ref.id})
+                return True
+            if not create_once(db.transaction()):
+                return True
+        else:
+            _, doc_ref = db.collection('finance_transactions').add(nueva_transaccion)
         print(f"✅ Éxito: Registro guardado en Firebase (ID: {doc_ref.id})")
         # El push es best-effort: nunca debe romper el sync.
         try:
@@ -501,9 +523,20 @@ def reprocess_last_emails(db, service, client, n, dry_run):
                   f"('{sender[:60]}').")
             continue
 
+        try:
+            withdrawal = process_withdrawal(
+                db, sender, body_text, msg_id, firestore.transactional,
+                firestore.SERVER_TIMESTAMP, dry_run=dry_run)
+        except Exception as error:
+            print(f"Withdrawal replay failed for {msg_id}; no label change: {error}")
+            continue
+        if withdrawal is not None:
+            print(f"Withdrawal replay outcome: {withdrawal['outcome']}")
+            continue
+
         datos_ia, cat_tree = procesar_texto_con_ia(body_text[:MAX_BODY_CHARS], db, client, source_text=body_text)
         if datos_ia:
-            registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=dry_run)
+            registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=dry_run, email_id=msg_id)
         else:
             print(f"⚠️ El correo {msg_id} falló en la interpretación por IA.")
 
@@ -544,7 +577,7 @@ def main():
     db = conectar_db()
 
     print("🔑 Iniciando conexión con Gmail...")
-    service = authenticate_gmail(db)
+    service = authenticate_gmail(db, persist_refresh=not args.dry_run)
 
     # Modo prueba: re-procesar los últimos N correos (validar el pipeline en
     # producción tras un merge, idealmente con --dry-run).
@@ -575,7 +608,8 @@ def main():
 
         if is_processed(db, msg_id):
             print(f"⏭️ El correo {msg_id} ya fue procesado pero sigue etiquetado. Removiendo etiqueta...")
-            mark_as_processed(service, msg_id, label_id)
+            if not args.dry_run:
+                mark_as_processed(service, msg_id, label_id)
             continue
 
         print("\n" + "-" * 50)
@@ -592,8 +626,9 @@ def main():
                         if h.get('name', '').lower() == 'subject'), '')
         if looks_like_statement(subject):
             print(f"🚫 El correo parece un extracto/estado de cuenta ('{subject[:60]}'). Se ignora sin llamar al LLM.")
-            mark_as_processed(service, msg_id, label_id)
-            save_processed_email(db, msg_id)
+            if not args.dry_run:
+                mark_as_processed(service, msg_id, label_id)
+                save_processed_email(db, msg_id)
             continue
 
         # Momento del correo (≈ momento de la transacción) en hora local de Colombia.
@@ -609,8 +644,9 @@ def main():
         if not body_text:
             print(f"⚠️ No se pudo extraer texto legible del correo {msg_id}")
             # Lo marcamos procesado de todas formas para no ciclar en correos vacíos
-            mark_as_processed(service, msg_id, label_id)
-            save_processed_email(db, msg_id)
+            if not args.dry_run:
+                mark_as_processed(service, msg_id, label_id)
+                save_processed_email(db, msg_id)
             continue
 
         # Gate barato pre-LLM: alertas de terceros (banco) sobre cargos de Uber
@@ -621,8 +657,23 @@ def main():
         if is_third_party_uber_rides_alert(sender, body_text):
             print(f"🚫 Alerta de un tercero sobre un cargo de Uber Rides ('{sender[:60]}'). "
                   f"Se ignora sin llamar al LLM: solo el recibo de Uber crea la transacción.")
-            mark_as_processed(service, msg_id, label_id)
-            save_processed_email(db, msg_id)
+            if not args.dry_run:
+                mark_as_processed(service, msg_id, label_id)
+                save_processed_email(db, msg_id)
+            continue
+
+        # A withdrawal is a movement to cash, never a model-inferred expense.
+        try:
+            withdrawal = process_withdrawal(
+                db, sender, body_text, msg_id, firestore.transactional,
+                firestore.SERVER_TIMESTAMP, dry_run=args.dry_run)
+        except Exception as error:
+            print(f"Withdrawal processing failed for {msg_id}; email retained for retry: {error}")
+            continue
+        if withdrawal is not None:
+            print(f"Withdrawal outcome: {withdrawal['outcome']}")
+            if withdrawal['removeLabel'] and not args.dry_run:
+                mark_as_processed(service, msg_id, label_id)
             continue
 
         # Limitar el tamaño del texto enviado al modelo
@@ -632,14 +683,14 @@ def main():
         datos_ia, cat_tree = procesar_texto_con_ia(truncated_text, db, client, source_text=body_text)
 
         if datos_ia:
-            success = registrar_transaccion(datos_ia, tx_dt, db, cat_tree)
-            if success:
+            success = registrar_transaccion(datos_ia, tx_dt, db, cat_tree, dry_run=args.dry_run, email_id=msg_id)
+            if success and not args.dry_run:
+                if datos_ia.get('type') == 'ignore':
+                    save_processed_email(db, msg_id)
                 mark_as_processed(service, msg_id, label_id)
-                save_processed_email(db, msg_id)
         else:
             print(f"⚠️ El correo {msg_id} falló en la interpretación por IA. Se mantendrá la etiqueta para reintentar luego.")
 
 
 if __name__ == '__main__':
     main()
-
