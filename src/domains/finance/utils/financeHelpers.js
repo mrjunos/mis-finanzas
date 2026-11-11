@@ -48,6 +48,11 @@ export const parseTransactionDate = (dateField) => {
  * @param {Array<{type: string, amount: number, currency?: string, context?: string}>} transactions
  * @returns {{ netWorth: Object, personalBalance: Object, businessCashFlow: Object }}
  */
+export const signedCashFlow = (transaction) => {
+    if (transaction.type === 'transfer' || transaction.isTransfer === true) return 0;
+    return transaction.type === 'credit' ? Number(transaction.amount) : -Number(transaction.amount);
+};
+
 export const calculateBalances = (transactions) => {
     const netWorth = {};
     const personalBalance = {};
@@ -57,7 +62,7 @@ export const calculateBalances = (transactions) => {
         // Skip transfers — they move money between accounts, not in/out
         if (t.type === 'transfer' || t.isTransfer === true) return;
 
-        const amount = t.type === 'credit' ? Number(t.amount) : -Number(t.amount);
+        const amount = signedCashFlow(t);
         const currency = t.currency || 'USD';
 
         if (!netWorth[currency]) netWorth[currency] = 0;
